@@ -1,0 +1,22 @@
+{
+  "version": "2.0.2",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "lib": ["es5", "es6"],
+    "target": "es5",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "baseUrl": "./",
+    "paths": {
+      "@dataTypes*": ["src/data-types/*", "src/data-types"],
+      "@root/*": ["src/*"]
+    },
+    "strictNullChecks": true
+  },
+  "include": [
+    "./src/**/*"
+  ],
+}
