@@ -8,11 +8,13 @@
     "moduleResolution": "node",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "sourceMap": true,
     "baseUrl": "./",
     "paths": {
       "@dataTypes*": ["src/data-types/*", "src/data-types"],
-      "@root/*": ["src/*"]
+      "@root/*": ["src/*"],
     },
     "strictNullChecks": true
   },
