@@ -110,11 +110,11 @@ class UserType {
 }
 
 const defaultUserTypes: UserMap = {
-  superAdmin: new UserType('SuperAdmin', Number.MAX_SAFE_INTEGER),
-  admin: new UserType('Admin', Number.MAX_SAFE_INTEGER - 1),
-  editor: new UserType('Editor', Math.pow(2, 32)),
-  writer: new UserType('Writer', Math.pow(2, 16)),
-  viewer: new UserType('Viewer', Math.pow(2, 4)),
+  superAdmin: new UserType('superAdmin', Number.MAX_SAFE_INTEGER),
+  admin: new UserType('admin', Number.MAX_SAFE_INTEGER - 1),
+  editor: new UserType('editor', Math.pow(2, 32)),
+  writer: new UserType('writer', Math.pow(2, 16)),
+  viewer: new UserType('viewer', Math.pow(2, 4)),
 };
 
 export {

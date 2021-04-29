@@ -9,11 +9,10 @@ import Koa from 'koa';
 import Router from 'koa-router';
 import mount from 'koa-mount';
 
+import koaJWT from "koa-jwt";
 import logger from 'koa-logger';
 import json from 'koa-json';
 import bodyParser from 'koa-bodyparser';
-
-import { gql, ApolloServer } from 'apollo-server-koa';
 
 import { BasicDataController } from '@root/data-controllers';
 import { ActionBank } from './action-bank';
@@ -29,6 +28,9 @@ void async function startApp() {
   app.use(logger());
   app.use(json());
   app.use(bodyParser());
+
+  const secret = process.env.jwt_secret ?? 'default_secret';
+  app.use(koaJWT({secret, passthrough: true}));
 
   const actionBank = new ActionBank();
 
@@ -72,7 +74,6 @@ void async function startApp() {
     },
   );
 
-  // app.use(mount('/api/user', actionBank.userApp));
   app.use(mount('/api', actionBank.mainApp));
 
   app

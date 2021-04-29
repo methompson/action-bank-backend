@@ -1,10 +1,18 @@
 import Router from 'koa-router';
 import Koa from 'koa';
-import mount from 'koa-mount';
+import koaJWT from "koa-jwt";
 import { Next, ParameterizedContext } from 'koa';
+import mount from 'koa-mount';
 import { hashSync, compareSync } from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
-import { gql, ApolloServer } from 'apollo-server-koa';
+import {
+  gql,
+  ApolloServer,
+  makeExecutableSchema,
+  UserInputError,
+} from 'apollo-server-koa';
+import { rule, allow, shield } from 'graphql-shield';
+import { applyMiddleware } from 'graphql-middleware'
 
 import { DataController } from '@root/data-controllers';
 import {
@@ -16,11 +24,12 @@ import {
   UserType,
   typeGuards,
 } from '@dataTypes/';
-import { useRouteProtection } from './route-protection';
+// import { useRouteProtection } from './route-protection';
 import {
   EmailExistsException,
   UserExistsException,
 } from '@root/exceptions/user-exceptions';
+import { isRecord } from '@dataTypes/type-guards';
 
 class ActionBank {
   private dataController: DataController;
@@ -54,7 +63,7 @@ class ActionBank {
           email: 'admin@admin.admin',
           firstName: 'admin',
           lastName: 'admin',
-          userType: this.context.userTypeMap.getUserType('SuperAdmin'),
+          userType: this.context.userTypeMap.getUserType('superAdmin'),
           passwordHash: this.hashPassword('password'),
           userMeta: {},
           enabled: true,
@@ -67,7 +76,7 @@ class ActionBank {
       process.exit();
     }
 
-    this.userApp = await this.initUserRouter();
+    this.userApp = this.initUserRouter();
 
     this.mainApp = new Koa();
     this.mainApp.use(mount('/user', this.userApp));
@@ -75,9 +84,9 @@ class ActionBank {
     return this;
   }
 
-  private async initUserRouter(): Promise<Koa> {
-    const adminUserType = this.context.userTypeMap.getUserType('Admin');
-    const editorUserType = this.context.userTypeMap.getUserType('Editor');
+  private initUserRouter(): Koa {
+    const adminUserType = this.context.userTypeMap.getUserType('admin');
+    const editorUserType = this.context.userTypeMap.getUserType('editor');
 
     const r = new Router();
     const app = new Koa();
@@ -89,35 +98,35 @@ class ActionBank {
 
     r.get(
       '/id',
-      useRouteProtection(),
+      this.useRouteProtection(),
       async (ctx, next) => this.filterByUserType(ctx, next, editorUserType),
       async (ctx, next) => this.getUserById(ctx, next),
     );
 
     r.get(
       '/username',
-      useRouteProtection(),
+      this.useRouteProtection(),
       async (ctx, next) => this.filterByUserType(ctx, next, editorUserType),
       async (ctx, next) => this.getUserByUserName(ctx, next),
     );
 
     r.post(
       '/add',
-      useRouteProtection(),
+      this.useRouteProtection(),
       async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
       async (ctx, next) => this.addUser(ctx, next),
     );
 
     r.post(
       '/edit',
-      useRouteProtection(),
+      this.useRouteProtection(),
       async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
       async (ctx, next) => this.editUser(ctx, next),
     );
 
     r.post(
       '/updatePassword',
-      useRouteProtection(),
+      this.useRouteProtection(),
       async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
       async (ctx, next) => this.updatePassword(ctx, next),
     );
@@ -136,62 +145,164 @@ class ActionBank {
 
     r.post(
       '/delete',
-      useRouteProtection(),
+      this.useRouteProtection(),
       async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
       async (ctx, next) => this.deleteUser(ctx, next),
     );
 
     const typeDefs = gql`
       type Query {
-        test: [Test]
+        getUserById(id: ID!): User,
+        getUserByUsername(username: String): User,
+        getUsers(pagination: Int, page: Int): [User]
       }
-      type Test {
-        name: String,
-        value: Int
+
+      type User {
+        id: ID,
+        username: String,
+        email: String,
+        firstName: String,
+        lastName: String,
+        userType: String,
+        userMeta: String,
+        dateAdded: Int,
+        dateUpdated: Int
       }
     `;
 
-    interface Test {
-      name: string;
-      value: number;
-    }
 
     const resolvers = {
       Query: {
-        test: () => {
-          const test1: Test = {
-            name: 'test1',
-            value: 1,
-          };
-          const test2: Test = {
-            name: 'test1',
-            value: 1,
-          };
-          return [
-            test1,
-            test2,
-          ];
+        getUserById: async (parent, args, context, info) => {
+          if (!isRecord(args)
+            || typeof args?.id !== 'string'
+          ) {
+            // throw new UserInputError('Invalid args value');
+            return null;
+          }
+
+          let user: User;
+          try {
+            user = await this.dataController.userController.getUserById(args.id);
+          } catch(e) {
+            // throw new Error(`Data controller error: ${e}`);
+            return null;
+          }
+
+          return user.graphQLObject;
+        },
+        getUsers: async (parent, args, context, info) => {
+          if (!isRecord(args)) {
+            return null;
+          }
+
+          const pagination = typeof args?.pagination === 'number'
+            ? args.pagination
+            : 10;
+
+          const page = typeof args?.page === 'number'
+            ? args.page
+            : 1;
+
+          const users = await this.dataController.userController.getUsers(pagination, page);
+
+          const output = users.map((el) => el.graphQLObject);
+
+          return output;
         },
       },
     };
 
-    const apolloServer = new ApolloServer({
+    const permissions = {
+      Query: {
+        // test: this.guardByUserType(editorUserType),
+        getUserById: this.guardByUserType(adminUserType),
+        getUserByUsername: this.guardByUserType(adminUserType),
+      },
+    };
+
+    const schema = makeExecutableSchema({
       typeDefs,
       resolvers,
     });
 
-    await apolloServer.start();
+    const schemaWithMiddleware = applyMiddleware(
+      schema,
+      shield(
+        permissions,
+        { allowExternalErrors: true },
+      ),
+    );
 
-    apolloServer.applyMiddleware({
-      app,
-      path: '/graphql',
+    const apolloServer = new ApolloServer({
+      schema: schemaWithMiddleware,
+      // This function passes the Koa context into the Apollo Server instnaces
+      context: (config) => {
+        const ctx: Record<string, unknown> = {};
+
+        if (isRecord(config) && isRecord(config.ctx)) {
+          ctx.koaCtx = config.ctx;
+        }
+
+        return ctx;
+      },
+      // TODO format the error?
+      formatError: (err) => {
+        // return null;
+        return err;
+      },
     });
+
+    apolloServer.applyMiddleware({app});
+
+    r.post('/graphql', apolloServer.getMiddleware());
 
     app
       .use(r.routes())
       .use(r.allowedMethods());
 
     return app;
+  }
+
+  /**
+   * This rule guards against users whose permission levels are too low to access
+   * certain resources.
+   *
+   * @param minUserType The minimum userType allowed to access the content
+   * @returns Rule
+   */
+  guardByUserType(minUserType: UserType) {
+    return rule()(
+      (parent, args, ctx, info) => {
+
+        if (!isRecord(ctx)
+          || !isRecord(ctx.koaCtx)
+          || !isRecord(ctx.koaCtx.state)
+          || !isRecord(ctx.koaCtx.state.user)
+        ) {
+          return false;
+        }
+
+        const user = ctx.koaCtx.state.user;
+
+        let token: UserToken;
+        try {
+          token = UserToken.fromJson(user);
+        } catch (e) {
+          return false;
+        }
+
+        const currentUserType = this.context.userTypeMap.getUserType(token.userType);
+
+        return currentUserType.canAccessLevel(minUserType);
+      },
+    );
+  }
+
+  private useRouteProtection() {
+    const secret = process.env.jwt_secret ?? 'default_secret';
+    // console.log('route protection', secret);
+    return koaJWT({secret});
   }
 
   private hashPassword(password: string): string {

@@ -32,7 +32,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
     return this._users;
   }
 
-  async getUsers(): Promise<User[]> {
+  async getUsers(pagination: number, page: number): Promise<User[]> {
     const users = Object.values(this.users);
 
     users.sort((a, b) => {

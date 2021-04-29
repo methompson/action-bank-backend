@@ -85,6 +85,20 @@ class User extends NewUser {
     );
   }
 
+  get graphQLObject() {
+    return {
+      id: this.id,
+      username: this.username,
+      email: this.email,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      userType: this.userType.name,
+      userMeta: JSON.stringify(this.userMeta),
+      dateAdded: this.dateAdded,
+      dateUpdated: this.dateUpdated,
+    };
+  }
+
   static fromJson(rawJson: unknown, userTypeMap: UserTypeMap): User {
     if (!isObject(rawJson)) {
       throw new Error('Invalid Data');
