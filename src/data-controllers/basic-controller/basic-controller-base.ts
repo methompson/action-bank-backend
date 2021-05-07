@@ -15,6 +15,10 @@ abstract class BasicDataControllerBase {
 
     return output;
   }
+
+  constructor(programContext: ProgramContext) {
+    this.programContext = programContext;
+  }
 }
 
 export default BasicDataControllerBase;

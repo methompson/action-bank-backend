@@ -3,10 +3,24 @@ import {
   UserTypeMap,
   defaultUserTypes,
 } from './usertype';
+import {
+  Deposit,
+  NewDeposit,
+  DepositAction,
+  NewDepositAction,
+} from './deposit';
+import {
+  Withdrawal,
+  NewWithdrawal,
+  WithdrawalAction,
+  NewWithdrawalAction,
+} from './withdrawal';
+import Exchange from './exchange';
 import { User, NewUser } from './user';
 import ProgramContext from './program-context';
 import UserToken from './user-token';
 import * as typeGuards from './type-guards';
+import ActionBankOptions from './action-bank-options';
 
 export {
   UserType,
@@ -17,4 +31,14 @@ export {
   ProgramContext,
   UserToken,
   typeGuards,
+  ActionBankOptions,
+  Deposit,
+  NewDeposit,
+  DepositAction,
+  NewDepositAction,
+  Withdrawal,
+  NewWithdrawal,
+  WithdrawalAction,
+  NewWithdrawalAction,
+  Exchange,
 };

@@ -156,6 +156,60 @@ class User extends NewUser {
 
     return user;
   }
+
+  mergeEdits(data: Record<string, unknown>, userTypeMap: UserTypeMap): User {
+    const username = typeof data.username === 'string'
+      ? data.username
+      : this.username;
+
+    const email = typeof data.email === 'string'
+      ? data.email
+      : this.email;
+    const firstName = typeof data.firstName === 'string'
+      ? data.firstName
+      : this.firstName;
+    const lastName = typeof data.lastName === 'string'
+      ? data.lastName
+      : this.lastName;
+
+    const userType = typeof data.userType === 'string'
+      ? userTypeMap.getUserType(data.userType)
+      : this.userType;
+
+    let userMeta: Record<string, unknown>;
+
+    try {
+      userMeta = typeof data.userMeta === 'string'
+        ? JSON.parse(data.userMeta)
+        : this.userMeta;
+    } catch (e) {
+      userMeta = this.userMeta;
+    }
+
+    const enabled = typeof data.enabled === 'boolean'
+      ? data.enabled
+      : this.enabled;
+
+    const passwordHash = typeof data.passwordHash === 'string'
+      ? data.passwordHash
+      : this.passwordHash;
+
+    return new User(
+      this.id,
+      username,
+      email,
+      firstName,
+      lastName,
+      userType,
+      passwordHash,
+      userMeta,
+      enabled,
+      this.passwordResetToken,
+      this.passwordResetDate,
+      this.dateAdded,
+      this.dateUpdated,
+    );
+  }
 }
 
 export {

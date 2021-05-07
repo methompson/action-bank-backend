@@ -1,16 +1,26 @@
 import UserController from './user-controller';
 import ProgramContext from '@dataTypes/program-context';
+import { UserExistsException } from '@root/exceptions/user-exceptions';
 
 abstract class DataController {
-  initialized: boolean;
   programContext: ProgramContext;
 
   protected _userController: UserController;
 
-  get userController() { return this._userController; }
+  get userController(): UserController {
+    return this._userController;
+  }
 
-  async init(programContext: ProgramContext): Promise<void> {
-    this.programContext = programContext;
+  constructor(
+    programContext: ProgramContext,
+    userController: UserController,
+  ) {
+    this.programContext = programContext,
+    this._userController = userController;
+  }
+
+  static async init(programContext: ProgramContext, options?: Record<string, unknown>): Promise<DataController> {
+    throw new Error('Unimplemented');
   }
 }
 

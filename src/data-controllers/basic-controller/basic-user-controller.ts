@@ -1,7 +1,7 @@
 import { open, writeFile, mkdir } from 'fs/promises';
 import * as path from 'path';
 
-import { UserController } from '@root/data-controllers/interfaces/';
+import { UserController } from '@root/data-controllers/interfaces';
 import BasicDataControllerBase from './basic-controller-base';
 import {
   UserExistsException,
@@ -13,6 +13,7 @@ import {
 import {
   User,
   NewUser,
+  ProgramContext,
 } from '@dataTypes';
 
 
@@ -23,8 +24,8 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
 
   protected _users: Record<number, User> = {};
 
-  constructor(dataLocation: string) {
-    super();
+  constructor(dataLocation: string, programContext: ProgramContext) {
+    super(programContext);
     this.dataLocation = dataLocation;
   }
 
@@ -90,8 +91,11 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
   }
 
   async addUser(user: NewUser): Promise<User> {
-    if (this.containsUser(user.username, user.email)) {
+    const containsUser = this.containsUser(user.username, user.email);
+    if (containsUser === 'username') {
       throw new UserExistsException();
+    } else if (containsUser === 'email') {
+      throw new EmailExistsException();
     }
 
     const id = this.getNextUserId();
@@ -198,14 +202,16 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
     return Object.keys(this._users).length === 0;
   }
 
-  protected containsUser(username: string, email: string): boolean {
+  protected containsUser(username: string, email: string): string | null {
     for (const user of Object.values(this._users)) {
-      if (user.username === username || user.email === email) {
-        return true;
+      if (user.username === username) {
+        return 'username';
+      } else if (user.email === email) {
+        return 'email';
       }
     }
 
-    return false;
+    return null;
   }
 
   protected getNextUserId(): number {
@@ -283,6 +289,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
         const user = User.fromJson(val, this.programContext.userTypeMap);
         userData[user.id] = user;
       } catch(e) {
+        console.log();
         // Do nothing
       }
     });

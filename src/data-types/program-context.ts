@@ -1,4 +1,4 @@
-import { UserTypeMap } from '@dataTypes/';
+import { UserTypeMap } from '@dataTypes';
 
 interface ProgramContext {
   userTypeMap: UserTypeMap,

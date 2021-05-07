@@ -1,6 +1,5 @@
 import Router from 'koa-router';
 import Koa from 'koa';
-import koaJWT from "koa-jwt";
 import { Next, ParameterizedContext } from 'koa';
 import mount from 'koa-mount';
 import { hashSync, compareSync } from 'bcryptjs';
@@ -10,9 +9,11 @@ import {
   ApolloServer,
   makeExecutableSchema,
   UserInputError,
+  AuthenticationError,
 } from 'apollo-server-koa';
-import { rule, allow, shield } from 'graphql-shield';
-import { applyMiddleware } from 'graphql-middleware'
+import { Rule } from 'graphql-shield/dist/rules';
+import { rule, shield } from 'graphql-shield';
+import { applyMiddleware } from 'graphql-middleware';
 
 import { DataController } from '@root/data-controllers';
 import {
@@ -22,14 +23,18 @@ import {
   User,
   UserToken,
   UserType,
-  typeGuards,
-} from '@dataTypes/';
+  ActionBankOptions,
+} from '@dataTypes';
 // import { useRouteProtection } from './route-protection';
 import {
   EmailExistsException,
   UserExistsException,
 } from '@root/exceptions/user-exceptions';
-import { isRecord } from '@dataTypes/type-guards';
+import { isActionBankOptions, isRecord } from '@dataTypes/type-guards';
+import {
+  MutateDataException,
+  QueryDataException,
+} from '@root/exceptions/graphql-exceptions';
 
 class ActionBank {
   private dataController: DataController;
@@ -39,24 +44,36 @@ class ActionBank {
   mainApp: Koa;
 
   userApp: Koa;
+  actionApp: Koa;
 
   // 15 minute timeout for password tokens
   private PASSWORD_TOKEN_TIMEOUT: number = 1000 * 60 * 15;
 
   constructor() {}
 
-  async init(dataController: DataController, options?: Record<string, unknown>): Promise<ActionBank> {
+  async init(dataController: DataController, options?: ActionBankOptions | Record<string, unknown>): Promise<ActionBank> {
     this.dataController = dataController;
-    this.options = options !== undefined ? options : {};
+    if (isActionBankOptions(options)) {
+      this.options = {
+        ...options
+       };
+    } else {
+      throw new Error('Invalid Action Bank Options');
+    }
 
     this.context = {
       userTypeMap: new UserTypeMap(),
     };
 
-    await this.dataController.init(this.context);
-
     try {
-      const isNoUsers = await this.dataController.userController.isNoUsers();
+      const userController = this.dataController.userController;
+
+      if (userController === null) {
+        throw new Error('Invalid UserController');
+      }
+
+      const isNoUsers = await userController.isNoUsers();
+
       if (isNoUsers) {
         const u: NewUser = {
           username: 'admin',
@@ -69,14 +86,17 @@ class ActionBank {
           enabled: true,
         };
 
-        await this.dataController.userController.addUser(u);
+        await userController.addUser(u);
       }
     } catch(e) {
-      console.log(`Error during init: ${e}`);
-      process.exit();
+      const msg = `Error during init: ${e}`;
+      console.log(msg);
+
+      throw msg;
     }
 
     this.userApp = this.initUserRouter();
+    this.actionApp = this.initBankRouter();
 
     this.mainApp = new Koa();
     this.mainApp.use(mount('/user', this.userApp));
@@ -96,65 +116,19 @@ class ActionBank {
       async (ctx, next) => this.logUserIn(ctx, next),
     );
 
-    r.get(
-      '/id',
-      this.useRouteProtection(),
-      async (ctx, next) => this.filterByUserType(ctx, next, editorUserType),
-      async (ctx, next) => this.getUserById(ctx, next),
-    );
-
-    r.get(
-      '/username',
-      this.useRouteProtection(),
-      async (ctx, next) => this.filterByUserType(ctx, next, editorUserType),
-      async (ctx, next) => this.getUserByUserName(ctx, next),
-    );
-
-    r.post(
-      '/add',
-      this.useRouteProtection(),
-      async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
-      async (ctx, next) => this.addUser(ctx, next),
-    );
-
-    r.post(
-      '/edit',
-      this.useRouteProtection(),
-      async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
-      async (ctx, next) => this.editUser(ctx, next),
-    );
-
-    r.post(
-      '/updatePassword',
-      this.useRouteProtection(),
-      async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
-      async (ctx, next) => this.updatePassword(ctx, next),
-    );
-
-    r.post(
-      '/updatePasswordWithToken',
-      async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
-      async (ctx, next) => this.updatePasswordWithToken(ctx, next),
-    );
-
-    r.post(
-      '/getPasswordResetToken',
-      async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
-      async (ctx, next) => this.getPasswordResetToken(ctx, next),
-    );
-
-    r.post(
-      '/delete',
-      this.useRouteProtection(),
-      async (ctx, next) => this.filterByUserType(ctx, next, adminUserType),
-      async (ctx, next) => this.deleteUser(ctx, next),
-    );
-
     const typeDefs = gql`
       type Query {
         getUserById(id: ID!): User,
-        getUserByUsername(username: String): User,
+        getUserByUsername(username: String!): User,
         getUsers(pagination: Int, page: Int): [User]
+      }
+
+      type Mutation {
+        addUser(username: String!, email: String!, password: String!, enabled: Boolean, userMeta: String, firstName: String, lastName: String, userType: String): User
+        editUser(id: ID!, username: String, email: String, userMeta: String, firstName: String, lastName: String): User
+        adminEditUser(id: ID!, username: String, email: String, enabled: Boolean, userType: String, userMeta: String, firstName: String, lastName: String): User
+        updatePassword(id: ID!, newPassword: String!, oldPassword: String!): ID
+        deleteUser(id: ID!): ID
       }
 
       type User {
@@ -165,50 +139,41 @@ class ActionBank {
         lastName: String,
         userType: String,
         userMeta: String,
+        password: String,
         dateAdded: Int,
         dateUpdated: Int
       }
     `;
 
-
     const resolvers = {
       Query: {
-        getUserById: async (parent, args, context, info) => {
-          if (!isRecord(args)
-            || typeof args?.id !== 'string'
-          ) {
-            // throw new UserInputError('Invalid args value');
-            return null;
-          }
-
-          let user: User;
-          try {
-            user = await this.dataController.userController.getUserById(args.id);
-          } catch(e) {
-            // throw new Error(`Data controller error: ${e}`);
-            return null;
-          }
-
-          return user.graphQLObject;
+        getUserById: async (parent, args, ctx, info) => {
+          return this.getUserById(parent, args, ctx, info);
         },
-        getUsers: async (parent, args, context, info) => {
-          if (!isRecord(args)) {
-            return null;
-          }
-
-          const pagination = typeof args?.pagination === 'number'
-            ? args.pagination
-            : 10;
-
-          const page = typeof args?.page === 'number'
-            ? args.page
-            : 1;
-
-          const users = await this.dataController.userController.getUsers(pagination, page);
-
-          const output = users.map((el) => el.graphQLObject);
-
-          return output;
+        getUserByUsername: async (parent, args, ctx, info) => {
+          return this.getUserByUsername(parent, args, ctx, info);
+        },
+        getUsers: async (parent, args, ctx, info) => {
+          return this.getUsers(parent, args, ctx, info);
+        },
+      },
+      Mutation: {
+        addUser: async (parent, args, ctx, info) => {
+          return this.addUser(parent, args, ctx, info);
+        },
+        editUser: async(parent, args, ctx, info) => {
+          return this.editUser(parent, args, ctx, info);
+        },
+        // Functions the same as editUser, but can only be run by admin users and allows
+        // the user to modify other users and more fields.
+        adminEditUser: async(parent, args, ctx, info) => {
+          return this.adminEditUser(parent, args, ctx, info);
+        },
+        updatePassword: async(parent, args, ctx, info) => {
+          return this.updatePassword(parent, args, ctx, info);
+        },
+        deleteUser: async(parent, args, ctx, info) => {
+          return this.deleteUser(parent, args, ctx, info);
         },
       },
     };
@@ -218,6 +183,192 @@ class ActionBank {
         // test: this.guardByUserType(editorUserType),
         getUserById: this.guardByUserType(adminUserType),
         getUserByUsername: this.guardByUserType(adminUserType),
+        getUsers: this.guardByUserType(adminUserType),
+      },
+      Mutation: {
+        adminEditUser: this.guardByUserType(adminUserType),
+        updatePassword: this.guardByRequestingUser(),
+        deleteUser: this.guardByUserType(adminUserType),
+      },
+    };
+
+    const schema = makeExecutableSchema({
+      typeDefs,
+      resolvers,
+    });
+
+    const schemaWithMiddleware = applyMiddleware(
+      schema,
+      shield(
+        permissions,
+        { allowExternalErrors: true },
+      ),
+    );
+
+    const apolloServer = new ApolloServer({
+      schema: schemaWithMiddleware,
+      // This function passes the Koa context into the Apollo Server instnaces
+      context: (config) => {
+        const ctx: Record<string, unknown> = {};
+
+        if (isRecord(config) && isRecord(config.ctx)) {
+          ctx.koaCtx = config.ctx;
+        }
+
+        return ctx;
+      },
+      // TODO format the error?
+      formatError: (err) => {
+        // return null;
+        return err;
+      },
+    });
+
+    apolloServer.applyMiddleware({app});
+
+    r.post('/graphql', apolloServer.getMiddleware());
+
+    app
+      .use(r.routes())
+      .use(r.allowedMethods());
+
+    return app;
+  }
+
+  private initBankRouter(): Koa {
+    const adminUserType = this.context.userTypeMap.getUserType('admin');
+    const editorUserType = this.context.userTypeMap.getUserType('editor');
+
+    const r = new Router();
+    const app = new Koa();
+
+    const typeDefs = gql`
+      type Query {
+        getDeposits(userId: ID!): [Deposit]
+        getWithdrawals(userId: ID!): [Withdrawal]
+        getDepositActions(userId: ID!): [DepositAction]
+        getWithdrawalActions(userId: ID!): [WithdrawalAction]
+        getExchanges(userId: ID!): [Exchange]
+      }
+
+      type Mutation {
+        addDeposit(depositActionId: ID!, quantity: Float!): Deposit
+        addWithdrawal(withdrawalActionId: ID!, quantity: Float!): Withdrawal
+        editDeposit(depositId: ID!, quantity: Float!): Deposit
+        editWithdrawal(withdrawalId: ID!, quantity: Float!): Deposit
+        deleteDeposit(depositId: ID!): ID
+        deleteWithdrawal(withdrawalId: ID!): ID
+      }
+
+      type Exchange {
+        id: ID,
+        depositActions: [DepositAction],
+        deposits: [Deposit],
+        withdrawalActions: [WithdrawalAction],
+        withdrawals: [Withdrawal],
+        totalCurrent: Float,
+      }
+
+      type Deposit {
+        id: ID,
+        depositActionId: ID,
+        depositActionName: String,
+        uomQuant: Int,
+        depositQuant: Int,
+        quant: Float,
+        dateAdded: Int,
+      }
+
+      type DepositAction {
+        id: ID,
+        name: String,
+        uom: String,
+        uomQuant: Int,
+        depositQuant: Int,
+        enabled: Boolean,
+        sortedLocation: Int,
+        dateAdded: Int,
+        dateUpdated: Int,
+      }
+
+      type Withdrawal {
+        id: ID,
+        withdrawalActionId: ID,
+        withdrawalActionName: String,
+        uomQuant: Int,
+        withdrawalQuant: Int,
+        quant: Float,
+        dateAdded: Int,
+      }
+
+      type WithdrawalAction {
+        id: ID,
+        name: String,
+        uom: String,
+        uomQuant: Int,
+        withdrawalQuant: Int,
+        enabled: Boolean,
+        sortedLocation: Int,
+        dateAdded: Int,
+        dateUpdated: Int,
+      }
+    `;
+
+    const resolvers = {
+      Query: {
+        getDeposits: async (parent, args, ctx, info) => {
+          throw new QueryDataException('Unimplemented Resolver');
+        },
+        getWithdrawals: async (parent, args, ctx, info) => {
+          throw new QueryDataException('Unimplemented Resolver');
+        },
+        getDepositActions: async (parent, args, ctx, info) => {
+          throw new QueryDataException('Unimplemented Resolver');
+        },
+        getWithdrawalActions: async (parent, args, ctx, info) => {
+          throw new QueryDataException('Unimplemented Resolver');
+        },
+        getExchanges: async (parent, args, ctx, info) => {
+          throw new QueryDataException('Unimplemented Resolver');
+        },
+      },
+      Mutation: {
+        addDeposit: async (parent, args, ctx, info) => {
+          throw new MutateDataException('Unimplemented Resolver');
+        },
+        addWithdrawal: async (parent, args, ctx, info) => {
+          throw new MutateDataException('Unimplemented Resolver');
+        },
+        editDeposit: async (parent, args, ctx, info) => {
+          throw new MutateDataException('Unimplemented Resolver');
+        },
+        editWithdrawal: async (parent, args, ctx, info) => {
+          throw new MutateDataException('Unimplemented Resolver');
+        },
+        deleteDeposit: async (parent, args, ctx, info) => {
+          throw new MutateDataException('Unimplemented Resolver');
+        },
+        deleteWithdrawal: async (parent, args, ctx, info) => {
+          throw new MutateDataException('Unimplemented Resolver');
+        },
+      },
+    };
+
+    const permissions = {
+      Query: {
+        getDeposits: this.guardByLoggedInUser(),
+        getWithdrawals: this.guardByLoggedInUser(),
+        getDepositActions: this.guardByLoggedInUser(),
+        getWithdrawalActions: this.guardByLoggedInUser(),
+        getExchanges: this.guardByLoggedInUser(),
+      },
+      Mutation: {
+        addDeposit: this.guardByLoggedInUser(),
+        addWithdrawal: this.guardByLoggedInUser(),
+        editDeposit: this.guardByLoggedInUser(),
+        editWithdrawal: this.guardByLoggedInUser(),
+        deleteDeposit: this.guardByLoggedInUser(),
+        deleteWithdrawal: this.guardByLoggedInUser(),
       },
     };
 
@@ -271,7 +422,7 @@ class ActionBank {
    * @param minUserType The minimum userType allowed to access the content
    * @returns Rule
    */
-  guardByUserType(minUserType: UserType) {
+  guardByUserType(minUserType: UserType): Rule {
     return rule()(
       (parent, args, ctx, info) => {
 
@@ -299,56 +450,84 @@ class ActionBank {
     );
   }
 
-  private useRouteProtection() {
-    const secret = process.env.jwt_secret ?? 'default_secret';
-    // console.log('route protection', secret);
-    return koaJWT({secret});
+  /**
+   * This guard allows the specified user type to access the route, or if the requesting
+   * user's ID matches the id in the query.
+   * This guard requires that the GraphQL mutation has the user's id specified as 'id' or
+   * 'userId'.
+   * @param minUserType UserType The minimum usertype to allow unconditionally.
+   * @returns Rule
+   */
+  guardByRequestingUser(): Rule {
+    return rule()(
+      (parent, args, ctx, info) => {
+
+        if (!isRecord(ctx)
+          || !isRecord(ctx.koaCtx)
+          || !isRecord(ctx.koaCtx.state)
+          || !isRecord(ctx.koaCtx.state.user)
+          || !isRecord(args)
+        ) {
+          return false;
+        }
+
+        // if userId is null, it falls back to id.
+        const userId = args.userId ?? args.id;
+
+        const user = ctx.koaCtx.state.user;
+
+        let token: UserToken;
+        try {
+          token = UserToken.fromJson(user);
+        } catch (e) {
+          return false;
+        }
+
+        const currentUserType = this.context.userTypeMap.getUserType(token.userType);
+
+        return token.userId === args.id;
+      },
+    );
+  }
+
+  guardByLoggedInUser(): Rule {
+    return rule()(
+      (parent, args, ctx, info) => {
+
+        if (!isRecord(ctx)
+          || !isRecord(ctx.koaCtx)
+          || !isRecord(ctx.koaCtx.state)
+          || !isRecord(ctx.koaCtx.state.user)
+        ) {
+          return false;
+        }
+
+        const user = ctx.koaCtx.state.user;
+
+        let token: UserToken;
+        try {
+          token = UserToken.fromJson(user);
+        } catch (e) {
+          return false;
+        }
+
+        return true;
+      },
+    );
   }
 
   private hashPassword(password: string): string {
     return hashSync(password, 12);
   }
 
-  /**
-   * This middleware is supposed to be used AFTER koa-jwt is run so that the JWT the user
-   * passes is contained in ctx.state.user. This middleware determines the minimum user type
-   * to perform an action and either goes to next on success or throws an error on failure.
-   *
-   * @param ctx koa Context object
-   * @param next koa next function.
-   * @param minUserType Minimum UserType to perform an action.
-   */
-  private async filterByUserType(ctx: ParameterizedContext, next: Next, minUserType: UserType) {
-    const user = ctx?.state?.user;
-
-    if (!typeGuards.isRecord(user)) {
-      ctx.throw(401, 'Invalid User Token');
-    }
-
-    let token: UserToken;
-    try {
-      token = UserToken.fromJson(user);
-    } catch (e) {
-      ctx.throw(401, 'Invalid User Token');
-    }
-
-    const currentUserType = this.context.userTypeMap.getUserType(token.userType);
-
-    if (!currentUserType.canAccessLevel(minUserType)) {
-      ctx.throw(403, 'You lack the permissions to access this resource');
-    }
-
-    await next();
-  }
-
   /*************************************************************************************
-   * User Routes
+   * User Functions
    ********************************************************************************** */
 
   private async logUserIn(ctx: ParameterizedContext, next: Next) {
     const body = ctx?.request?.body;
 
-    if (!typeGuards.isRecord(body)) {
+    if (!isRecord(body)) {
       ctx.throw(400, 'Invalid Credentials');
     }
 
@@ -397,225 +576,140 @@ class ActionBank {
     await next();
   }
 
-  private async getUserById(ctx: ParameterizedContext, next: Next) {
-    const id = ctx?.query?.id;
-
-    if (typeof id !== 'string') {
-      ctx.throw(400, 'Invalid Credentials');
+  async getUserById(parent, args, ctx, info) {
+    if (!isRecord(args)
+      || typeof args?.id !== 'string'
+    ) {
+      // throw new UserInputError('Invalid args value');
+      return null;
     }
 
     let user: User;
     try {
-      user = await this.dataController.userController.getUserById(id);
+      user = await this.dataController.userController.getUserById(args.id);
     } catch(e) {
-      ctx.throw(400, 'Invalid user ID provided');
+      // throw new Error(`Data controller error: ${e}`);
+      return null;
     }
 
-    ctx.body = {
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-    };
-
-    await next();
+    return user.graphQLObject;
   }
 
-  private async getUserByUserName(ctx: ParameterizedContext, next: Next) {
-    const username = ctx?.query?.username;
-
-    if (typeof username !== 'string') {
-      ctx.throw(400, 'Invalid Credentials');
+  private async getUserByUsername(parent, args, ctx, info) {
+    if (!isRecord(args)
+      || typeof args?.username !== 'string'
+    ) {
+      // throw new UserInputError('Invalid args value');
+      return null;
     }
 
     let user: User;
-
     try {
-      user = await this.dataController.userController.getUserByUsername(username);
-
-    } catch (e) {
-      ctx.throw(400, 'Invalid username provided');
+      user = await this.dataController.userController.getUserByUsername(args.username);
+    } catch(e) {
+      // throw new Error(`Data controller error: ${e}`);
+      return null;
     }
 
-    ctx.body = {
-      msg: '/username',
-    };
-
-    ctx.body = {
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-    };
-
-    await next();
+    return user.graphQLObject;
   }
 
-  private async addUser(ctx: ParameterizedContext, next: Next) {
-    const body = ctx?.request?.body;
-
-    if (!typeGuards.isRecord(body)) {
-      ctx.throw(400, 'Invalid Credentials');
+  private async getUsers(parent, args, ctx, info) {
+    if (!isRecord(args)) {
+      return null;
     }
 
-    const newUser = body.newUser;
+    const pagination = typeof args?.pagination === 'number'
+      ? args.pagination
+      : 10;
 
-    if (!typeGuards.isRecord(newUser)) {
-      ctx.throw(400, 'Invalid Credentials');
+    const page = typeof args?.page === 'number'
+      ? args.page
+      : 1;
+
+    const users = await this.dataController.userController.getUsers(pagination, page);
+
+    const output = users.map((el) => el.graphQLObject);
+
+    return output;
+  }
+
+  private async addUser(parent, args, ctx, info) {
+    if (!isRecord(args)
+      || typeof args?.password != 'string'
+    ) {
+      return null;
     }
 
-    let u: NewUser;
-
-    // Let's construct a new user to make sure the user inputs are correct
+    let nUser: NewUser;
     try {
-      // Let's hash a password first.
-      if (typeof newUser?.password !== 'string') {
-        throw new Error();
-      }
-
-      const password = this.hashPassword(newUser.password);
-
-      u = NewUser.fromJson({
-        ...newUser,
+      const password = this.hashPassword(args?.password);
+      nUser = NewUser.fromJson({
+        ...args,
         password,
       }, this.context.userTypeMap);
     } catch(e) {
-      ctx.throw(400, 'Invalid Credentials');
+      throw new UserInputError('Invalid Data Provided', {
+        argumentName: 'userData'
+      });
     }
 
-    // If we get here, let's construct a regular user and hash the
-    // new user's password.
     let savedUser: User;
 
-
     try {
-      savedUser = await this.dataController.userController.addUser(u);
-    } catch (e) {
+      savedUser = await this.dataController.userController.addUser(nUser);
+    } catch(e) {
       if (e instanceof UserExistsException) {
-        ctx.throw(400, `Username already exists`);
+        throw new MutateDataException('Username already exists');
       }
 
       if(e instanceof EmailExistsException) {
-        ctx.throw(400, `Email already exists`);
+        throw new MutateDataException('Email already exists');
       }
 
-      ctx.throw(500, `Error while saving user: ${e}`);
+      throw new MutateDataException(`Error while saving user: ${e}`);
     }
 
-    ctx.body = {
-      id: savedUser.id,
-      username: savedUser.username,
-      email: savedUser.email,
-      firstName: savedUser.firstName,
-      lastName: savedUser.lastName,
-      userType: savedUser.userType.name,
-    };
-
-    await next();
+    return savedUser.graphQLObject;
   }
 
-  /**
-   * Does not edit the user's password
-   * @param ctx
-   * @param next
-   * @returns
-   */
-  private async editUser(ctx: ParameterizedContext, next: Next) {
-    const body = ctx?.request?.body;
-
-    if (!typeGuards.isRecord(body)) {
-      ctx.throw(400, 'Invalid Credentials');
+  private async editUser(parent, args, ctx, info) {
+    if (!isRecord(args) || typeof args?.id !== 'string') {
+      return null;
     }
 
-    const user = body.user;
-
-    if (!typeGuards.isRecord(user)) {
-      ctx.throw(400, 'Invalid Credentials');
+    if (!isRecord(ctx)
+      || !isRecord(ctx.koaCtx)
+      || !isRecord(ctx.koaCtx.state)
+      || !isRecord(ctx.koaCtx.state.user)
+    ) {
+      throw new MutateDataException('Invalid User Data');
     }
 
-    if (typeof user.id !== 'string') {
-      ctx.throw(400, 'Invalid Credentials');
-    }
-
-    // We prevent a user from editing a user of a higher level. e.g. admin user types
-    // cannot edit super admins.
-    let currentEditedUser: User;
-    try {
-      currentEditedUser = await this.dataController.userController.getUserById(user.id);
-    } catch(e) {
-      ctx.throw(400, 'User does not exist');
-    }
-
-    const userTypeMap = this.context.userTypeMap;
-
-    // We use filterByUserType to make sure that the userType actually exists.
-    let requester: UserToken;
+    let requestingUser: UserToken;
 
     try {
-      requester = UserToken.fromJson(ctx?.state?.user);
+      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
     } catch(e) {
-      // We're unlikely to hit this, but just in case...
-      ctx.throw(400, 'Invalid JWT');
+      throw new MutateDataException('Invalid Login Data');
     }
 
-    const requesterType = userTypeMap.getUserType(requester?.userType);
-
-    // compareUserTypeLevels will compare the first userType to the second. If the first
-    // is lower than the second, it will return a value less than 1.
-    if (userTypeMap.compareUserTypeLevels(requesterType, currentEditedUser.userType) < 0) {
-      ctx.throw(400, 'Cannot edit a user of a higher level');
+    if (requestingUser.userId !== args.id) {
+      throw new AuthenticationError('You can only update your own User information');
     }
 
-    // If we made it here, we're going to construct the new User object with the old
-    // user data and the new user data.
-
-    // We have to be careful with user type. We already prevent the user from updating
-    // users of a higher user type. However, we also need to make sure that the user
-    // type they're updating isn't higher than their current user type. The API will
-    // not prevent a user from demoting themself.
-    let newUserType: UserType;
-
-    const userType = typeof user?.userType === 'string' ? user.userType : '';
-
-    if (user?.userType == null) {
-      newUserType = currentEditedUser.userType;
-    } else {
-      const requestedUserType = userTypeMap.getUserType(userType);
-
-      if(userTypeMap.compareUserTypeLevels(requesterType, requestedUserType) < 0) {
-        ctx.throw(400, 'Cannot set user to a higher user level than your own.');
-      }
-
-      newUserType = requestedUserType;
+    let currentUserState: User;
+    try {
+      currentUserState = await this.dataController.userController.getUserById(args.id);
+    } catch(e) {
+      throw new MutateDataException('Invalid ID Provided');
     }
 
-    const username = typeGuards.isString(user.username) ? user.username : currentEditedUser.username;
-    const email = typeGuards.isString(user.email) ? user.email : currentEditedUser.email;
-    const firstName = typeGuards.isString(user.firstName) ? user.firstName : currentEditedUser.firstName;
-    const lastName = typeGuards.isString(user.lastName) ? user.lastName : currentEditedUser.lastName;
-    const userMeta = typeGuards.isRecord(user.userMeta) ? user.userMeta : currentEditedUser.userMeta;
-    const enabled = typeGuards.isBoolean(user.enabled) ? user.enabled : currentEditedUser.enabled;
-
-    const editedUser = new User(
-      currentEditedUser.id,
-      username,
-      email,
-      firstName,
-      lastName,
-      newUserType,
-      currentEditedUser.passwordHash,
-      userMeta,
-      enabled,
-      currentEditedUser.passwordResetToken,
-      currentEditedUser.passwordResetDate,
-      currentEditedUser.dateAdded,
-      Date.now(),
-    );
+    const editUserState = currentUserState.mergeEdits(args, this.context.userTypeMap);
 
     let result: User;
-
     try {
-      result = await this.dataController.userController.editUser(editedUser);
+      result = await this.dataController.userController.editUser(editUserState);
     } catch (e) {
       let msg = '';
       if (e instanceof EmailExistsException) {
@@ -626,90 +720,150 @@ class ActionBank {
         msg += `${e}`;
       }
 
-      ctx.throw(400, msg);
+      throw new MutateDataException(msg);
     }
 
-    ctx.body = {
-      id: result.id,
-      username: result.username,
-      email: result.email,
-      firstName: result.firstName,
-      lastName: result.lastName,
-      userType: result.userType.name,
-    };
-
-    await next();
+    return result.graphQLObject;
   }
 
-  private async updatePassword(ctx: ParameterizedContext, next: Next) {
-    const body = ctx?.request?.body;
-
-    if (!typeGuards.isRecord(body)) {
-      ctx.throw(400, 'Invalid Credentials');
+  private async adminEditUser(parent, args, ctx, info) {
+    if (!isRecord(args) || typeof args?.id !== 'string') {
+      return null;
     }
 
-    const reqUser = body.user;
-
-    if (!typeGuards.isRecord(reqUser)
-      || typeof reqUser?.id !== 'string'
-      || typeof reqUser?.newPassword !== 'string'
-      || typeof reqUser?.oldPassword !== 'string') {
-      ctx.throw(400, 'Invalid Credentials');
+    if (!isRecord(ctx)
+      || !isRecord(ctx.koaCtx)
+      || !isRecord(ctx.koaCtx.state)
+      || !isRecord(ctx.koaCtx.state.user)
+    ) {
+      throw new MutateDataException('Invalid User Data');
     }
 
-    if (!this.validatePassword(reqUser.newPassword)) {
-      ctx.throw('Invalid Password. Password must be 8 characters or longer');
+    let requestingUser: UserToken;
+
+    try {
+      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
+    } catch(e) {
+      throw new MutateDataException('Invalid Login Data');
+    }
+
+    const userTypeMap = this.context.userTypeMap;
+
+    // We need to check two things:
+    // The user isn't updating a higher rank user
+    // The user is promoting someone else to a higher rank than their own.
+    const requestingUserType = userTypeMap.getUserType(requestingUser.userType);
+
+    // Here we check if a user is updating another user to a higher level than their
+    // own user type.
+    if (typeof args.userType === 'string') {
+      const updatedUserType = userTypeMap.getUserType(args.userType);
+      if (userTypeMap.compareUserTypeLevels(requestingUserType, updatedUserType) < 0) {
+        throw new MutateDataException('Cannot update a user to a higher level than your own');
+      }
+    }
+
+    // We get the current user.
+    let currentUserState: User;
+    try {
+      currentUserState = await this.dataController.userController.getUserById(args.id);
+    } catch(e) {
+      throw new MutateDataException('Invalid ID Provided');
+    }
+
+    // Here we check if a user is updating another user of a higher level than their
+    // own user type.
+    if (userTypeMap.compareUserTypeLevels(requestingUserType, currentUserState.userType) < 0) {
+      throw new MutateDataException('Cannot update a user of a higher level than your own');
+    }
+
+    const userData = { ...args };
+
+    if (typeof args.password === 'string' && this.validatePassword(args.password)) {
+      userData.passwordHash = this.hashPassword(args.password);
+    }
+
+    const editUserState = currentUserState.mergeEdits(userData, userTypeMap);
+
+    let result: User;
+    try {
+      result = await this.dataController.userController.editUser(editUserState);
+    } catch (e) {
+      let msg = '';
+      if (e instanceof EmailExistsException) {
+        msg += 'Email already exists for another user.';
+      } else if (e instanceof UserExistsException) {
+        msg += 'Username already exists for another user.';
+      } else {
+        msg += `${e}`;
+      }
+
+      throw new MutateDataException(msg);
+    }
+
+    return result.graphQLObject;
+  }
+
+  private async updatePassword(parent, args, ctx, info) {
+    if (!isRecord(args)
+      || typeof args?.id !== 'string'
+      || typeof args?.newPassword !== 'string'
+      || typeof args?.oldPassword !== 'string'
+      || !isRecord(ctx)
+      || !isRecord(ctx.koaCtx)
+      || !isRecord(ctx.koaCtx.state)
+      || !isRecord(ctx.koaCtx.state.user)
+    ) {
+      throw new MutateDataException('Invalid Input');
+    }
+
+    if (!this.validatePassword(args.newPassword)) {
+      throw new MutateDataException('Invalid Password. Password must be 8 characters or longer');
     }
 
     // We prevent a user from editing a user of a higher level. e.g. admin user types
     // cannot edit super admins.
     let user: User;
     try {
-      user = await this.dataController.userController.getUserById(reqUser.id);
+      user = await this.dataController.userController.getUserById(args.id);
     } catch(e) {
-      ctx.throw(400, 'User does not exist');
+      throw new MutateDataException('User does not exist');
     }
 
     // We check the old password to make sure it's correct
-    if (!compareSync(reqUser.oldPassword, user.passwordHash)) {
-      ctx.throw(401, 'Invalid Credentials');
+    if (!compareSync(args.oldPassword, user.passwordHash)) {
+      throw new MutateDataException('Invalid User Password');
     }
 
-    const userErr = this.canUpdatePassword(ctx, user);
+    let requestingUser: UserToken;
+
+    try {
+      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
+    } catch(e) {
+      throw new MutateDataException('Invalid Login Data');
+    }
+
+    const userErr = this.canUpdatePassword(requestingUser, user);
     if (userErr.length > 0) {
-      ctx.throw(400, userErr);
+      throw new MutateDataException('Cannot update password');
     }
 
     try {
       await this.dataController.userController.updatePassword(
-        reqUser.id,
-        this.hashPassword(reqUser.newPassword),
+        user.id,
+        this.hashPassword(args.newPassword),
       );
     } catch (e) {
       const msg = `${e}`;
 
-      ctx.throw(400, msg);
+      throw new MutateDataException(msg);
     }
 
-    ctx.body = {
-      message: 'Password Successfully Updated',
-    };
-
-    await next();
+    return args.id;
   }
 
-  private canUpdatePassword(ctx: ParameterizedContext, currentEditedUser: User): string {
+  private canUpdatePassword(requester: UserToken, currentEditedUser: User): string {
     const userTypeMap = this.context.userTypeMap;
-
-    // We use filterByUserType to make sure that the userType actually exists.
-    let requester: UserToken;
-
-    try {
-      requester = UserToken.fromJson(ctx?.state?.user);
-    } catch(e) {
-      // We're unlikely to hit this, but just in case...
-      return 'Invalid JWT';
-    }
 
     const requesterType = userTypeMap.getUserType(requester?.userType);
 
@@ -736,13 +890,13 @@ class ActionBank {
   private async getPasswordResetToken(ctx: ParameterizedContext, next: Next) {
     const body = ctx?.request?.body;
 
-    if (!typeGuards.isRecord(body)) {
+    if (!isRecord(body)) {
       ctx.throw(400, 'Invalid Credentials');
     }
 
     const reqUser = body.user;
 
-    if ( !typeGuards.isRecord(reqUser)
+    if ( !isRecord(reqUser)
       || typeof reqUser?.id !== 'string'
       || typeof reqUser?.password !== 'string'
     ) {
@@ -753,125 +907,119 @@ class ActionBank {
   }
 
   private async updatePasswordWithToken(ctx: ParameterizedContext, next: Next) {
-    const body = ctx?.request?.body;
+    // const body = ctx?.request?.body;
 
-    if (!typeGuards.isRecord(body)) {
-      ctx.throw(400, 'Invalid Credentials');
-    }
+    // if (!isRecord(body)) {
+    //   ctx.throw(400, 'Invalid Credentials');
+    // }
 
-    const reqUser = body.user;
+    // const reqUser = body.user;
 
-    if (!typeGuards.isRecord(reqUser)
-      || typeof reqUser?.id !== 'string'
-      || typeof reqUser?.newPassword !== 'string'
-      || typeof reqUser?.passwordToken !== 'string') {
-      ctx.throw(400, 'Invalid Credentials');
-    }
+    // if (!isRecord(reqUser)
+    //   || typeof reqUser?.id !== 'string'
+    //   || typeof reqUser?.newPassword !== 'string'
+    //   || typeof reqUser?.passwordToken !== 'string') {
+    //   ctx.throw(400, 'Invalid Credentials');
+    // }
 
-    if (!this.validatePassword(reqUser.newPassword)) {
-      ctx.throw(400, 'Invalid Password. Password must be 8 characters or longer');
-    }
+    // if (!this.validatePassword(reqUser.newPassword)) {
+    //   ctx.throw(400, 'Invalid Password. Password must be 8 characters or longer');
+    // }
 
-    // We prevent a user from editing a user of a higher level. e.g. admin user types
-    // cannot edit super admins.
-    let user: User;
-    try {
-      user = await this.dataController.userController.getUserById(reqUser.id);
-    } catch(e) {
-      ctx.throw(400, 'User does not exist');
-    }
+    // // We prevent a user from editing a user of a higher level. e.g. admin user types
+    // // cannot edit super admins.
+    // let user: User;
+    // try {
+    //   user = await this.dataController.userController.getUserById(reqUser.id);
+    // } catch(e) {
+    //   ctx.throw(400, 'User does not exist');
+    // }
 
-    if (user.passwordResetToken !== reqUser.passwordResetToken) {
-      ctx.throw(400, 'Invalid password reset token');
-    }
+    // if (user.passwordResetToken !== reqUser.passwordResetToken) {
+    //   ctx.throw(400, 'Invalid password reset token');
+    // }
 
-    const timeout: Date = new Date(Date.now() - this.PASSWORD_TOKEN_TIMEOUT);
-    const passwordResetDate = new Date(user.passwordResetDate);
+    // const timeout: Date = new Date(Date.now() - this.PASSWORD_TOKEN_TIMEOUT);
+    // const passwordResetDate = new Date(user.passwordResetDate);
 
-    if (passwordResetDate < timeout) {
-      ctx.throw(400, 'Password reset token has expired');
-    }
+    // if (passwordResetDate < timeout) {
+    //   ctx.throw(400, 'Password reset token has expired');
+    // }
 
-    const userErr = this.canUpdatePassword(ctx, user);
-    if (userErr.length > 0) {
-      ctx.throw(400, userErr);
-    }
+    // const userErr = this.canUpdatePassword(ctx, user);
+    // if (userErr.length > 0) {
+    //   ctx.throw(400, userErr);
+    // }
 
-    try {
-      await this.dataController.userController.updatePassword(
-        reqUser.id,
-        this.hashPassword(reqUser.newPassword),
-      );
-    } catch (e) {
-      const msg = `${e}`;
+    // try {
+    //   await this.dataController.userController.updatePassword(
+    //     reqUser.id,
+    //     this.hashPassword(reqUser.newPassword),
+    //   );
+    // } catch (e) {
+    //   const msg = `${e}`;
 
-      ctx.throw(400, msg);
-    }
+    //   ctx.throw(400, msg);
+    // }
 
-    ctx.body = {
-      message: 'Password Successfully Updated',
-    };
+    // ctx.body = {
+    //   message: 'Password Successfully Updated',
+    // };
 
-    await next();
+    // await next();
   }
 
-  private async deleteUser(ctx: ParameterizedContext, next: Next) {
-    const body = ctx?.request?.body;
-
-    if (!typeGuards.isRecord(body)) {
-      ctx.throw(400, 'Invalid Credentials');
+  private async deleteUser(parent, args, ctx, info) {
+    if (!isRecord(args)
+      || typeof args?.id !== 'string'
+      || !isRecord(ctx)
+      || !isRecord(ctx.koaCtx)
+      || !isRecord(ctx.koaCtx.state)
+      || !isRecord(ctx.koaCtx.state.user)
+    ) {
+      throw new MutateDataException('Invalid User Data');
     }
 
-    const reqUser = body.user;
+    const delUserId = args.id;
+    let requestingUser: UserToken;
 
-    if (!typeGuards.isRecord(reqUser)
-      || typeof reqUser?.id !== 'string'
-    ) {
-      ctx.throw(400, 'Invalid Credentials');
+    try {
+      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
+    } catch(e) {
+      throw new MutateDataException('Invalid Login Data');
     }
 
     // We prevent our user from deleting themself.
-    let requester: UserToken;
-    try {
-      requester = UserToken.fromJson(ctx?.state?.user);
-    } catch(e) {
-      ctx.throw(401, 'Invalid User Data');
-    }
-
-    if (requester.userId === reqUser.id) {
-      ctx.throw(400, 'You cannot delete yourself');
+    if (requestingUser.userId === delUserId) {
+      throw new MutateDataException('You cannot delete yourself');
     }
 
     // We prevent a user from deleting a user of a higher level. e.g. admin user types
     // cannot delete super admins.
     let deletedUser: User;
     try {
-      deletedUser = await this.dataController.userController.getUserById(reqUser.id);
+      deletedUser = await this.dataController.userController.getUserById(delUserId);
     } catch(e) {
-      ctx.throw(400, 'User does not exist');
+      throw new MutateDataException('User does not exist');
     }
 
     // There should be no problem here. We use filterByUserType to make sure that the
     // userType actually exists.
-    const requesterType = this.context.userTypeMap.getUserType(requester?.userType);
+    const requesterType = this.context.userTypeMap.getUserType(requestingUser?.userType);
 
     // compareUserTypeLevels will compare the first userType to the second. If the first
     // is lower than the second, it will return a value less than 1.
     if (this.context.userTypeMap.compareUserTypeLevels(requesterType, deletedUser.userType) < 0) {
-      ctx.throw(400, 'Cannot delete a user of a higher level');
+      throw new MutateDataException('Cannot delete a user of a higher level');
     }
 
     try {
-      await this.dataController.userController.deleteUser(reqUser.id);
+      await this.dataController.userController.deleteUser(delUserId);
     } catch(e) {
-      ctx.throw(400, 'User does not exist');
+      throw new MutateDataException('User does not exist');
     }
 
-    ctx.body = {
-      msg: `user id ${reqUser.id} deleted`,
-    };
-
-    await next();
+    return delUserId;
   }
 
   /*************************************************************************************

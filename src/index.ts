@@ -16,6 +16,11 @@ import bodyParser from 'koa-bodyparser';
 
 import { BasicDataController } from '@root/data-controllers';
 import { ActionBank } from './action-bank';
+import {
+  ProgramContext,
+  UserTypeMap,
+  ActionBankOptions,
+} from '@dataTypes';
 
 /**
  * The app initialization is asynchronous, so we wrap all of our main app
@@ -35,11 +40,20 @@ void async function startApp() {
   const actionBank = new ActionBank();
 
   try {
-    const bdc = new BasicDataController({
-      'dataLocation': './data/',
-    });
+    const programContext: ProgramContext = {
+      userTypeMap: new UserTypeMap(),
+    };
 
-    await actionBank.init(bdc);
+    const bdc = await BasicDataController.init(
+      programContext,
+      { 'dataLocation': './data/' },
+    );
+
+    const actionBankOptions: ActionBankOptions = {
+      programContext,
+    };
+
+    await actionBank.init(bdc, actionBankOptions);
   } catch(e) {
     console.log('Unable to instance data controller', e);
     process.exit(1);

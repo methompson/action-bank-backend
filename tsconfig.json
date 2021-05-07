@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "lib": ["es5", "es6"],
-    "target": "es5",
+    "target": "es6",
     "module": "CommonJS",
     "moduleResolution": "node",
     "emitDecoratorMetadata": true,
@@ -13,12 +13,13 @@
     "sourceMap": true,
     "baseUrl": "./",
     "paths": {
-      "@dataTypes*": ["src/data-types/*", "src/data-types"],
-      "@root/*": ["src/*"],
+      "@dataTypes*": ["src/data-types*", "src/data-types/index.ts"],
+      "@root*": ["src*", "src/index.ts"],
     },
     "strictNullChecks": true
   },
   "include": [
-    "./src/**/*"
+    "./src/**/*",
+    "./test/**/*"
   ],
 }
