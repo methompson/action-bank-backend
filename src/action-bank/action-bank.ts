@@ -36,6 +36,14 @@ import {
   QueryDataException,
 } from '@root/exceptions/graphql-exceptions';
 
+import UserResolver from './user-resolver';
+import ExchangeResolver from './exchange-resolver';
+import DepositResolver from './deposit-resolver';
+import WithdrawalResolver from './withdrawal-resolver';
+import DepositActionResolver from './deposit-action-resolver';
+import WithdrawalActionResolver from './withdrawal-action-resolver';
+
+
 class ActionBank {
   private dataController: DataController;
   private options: Record<string, unknown>;
@@ -48,6 +56,13 @@ class ActionBank {
 
   // 15 minute timeout for password tokens
   private PASSWORD_TOKEN_TIMEOUT: number = 1000 * 60 * 15;
+
+  private userResolver: UserResolver;
+  private exchangeResolver: ExchangeResolver;
+  private depositResolver: DepositResolver;
+  private withdrawalResolver: WithdrawalResolver;
+  private depositActionResolver: DepositActionResolver;
+  private withdrawalActionResolver: WithdrawalActionResolver;
 
   constructor() {}
 
@@ -65,6 +80,13 @@ class ActionBank {
       userTypeMap: new UserTypeMap(),
     };
 
+    this.userResolver = new UserResolver(dataController, this.context);
+    this.exchangeResolver = new ExchangeResolver(dataController);
+    this.depositResolver = new DepositResolver();
+    this.withdrawalResolver = new WithdrawalResolver();
+    this.depositActionResolver = new DepositActionResolver();
+    this.withdrawalActionResolver = new WithdrawalActionResolver();
+
     try {
       const userController = this.dataController.userController;
 
@@ -81,7 +103,7 @@ class ActionBank {
           firstName: 'admin',
           lastName: 'admin',
           userType: this.context.userTypeMap.getUserType('superAdmin'),
-          passwordHash: this.hashPassword('password'),
+          passwordHash: this.userResolver.hashPassword('password'),
           userMeta: {},
           enabled: true,
         };
@@ -100,6 +122,7 @@ class ActionBank {
 
     this.mainApp = new Koa();
     this.mainApp.use(mount('/user', this.userApp));
+    this.mainApp.use(mount('/bank', this.actionApp));
 
     return this;
   }
@@ -145,36 +168,24 @@ class ActionBank {
       }
     `;
 
+    const userResolver = this.userResolver;
+
+    // We use arrow functions to maintain proper scoping when calling the
+    // functions from the user resolver.
     const resolvers = {
       Query: {
-        getUserById: async (parent, args, ctx, info) => {
-          return this.getUserById(parent, args, ctx, info);
-        },
-        getUserByUsername: async (parent, args, ctx, info) => {
-          return this.getUserByUsername(parent, args, ctx, info);
-        },
-        getUsers: async (parent, args, ctx, info) => {
-          return this.getUsers(parent, args, ctx, info);
-        },
+        getUserById: (parent, args, ctx, info) => userResolver.getUserById(parent, args, ctx, info),
+        getUserByUsername: (parent, args, ctx, info) => userResolver.getUserByUsername(parent, args, ctx, info),
+        getUsers: (parent, args, ctx, info) => userResolver.getUsers(parent, args, ctx, info),
       },
       Mutation: {
-        addUser: async (parent, args, ctx, info) => {
-          return this.addUser(parent, args, ctx, info);
-        },
-        editUser: async(parent, args, ctx, info) => {
-          return this.editUser(parent, args, ctx, info);
-        },
+        addUser: (parent, args, ctx, info) => userResolver.addUser(parent, args, ctx, info),
+        editUser: (parent, args, ctx, info) => userResolver.editUser(parent, args, ctx, info),
         // Functions the same as editUser, but can only be run by admin users and allows
         // the user to modify other users and more fields.
-        adminEditUser: async(parent, args, ctx, info) => {
-          return this.adminEditUser(parent, args, ctx, info);
-        },
-        updatePassword: async(parent, args, ctx, info) => {
-          return this.updatePassword(parent, args, ctx, info);
-        },
-        deleteUser: async(parent, args, ctx, info) => {
-          return this.deleteUser(parent, args, ctx, info);
-        },
+        adminEditUser: (parent, args, ctx, info) => userResolver.adminEditUser(parent, args, ctx, info),
+        updatePassword: (parent, args, ctx, info) => userResolver.updatePassword(parent, args, ctx, info),
+        deleteUser: (parent, args, ctx, info) => userResolver.deleteUser(parent, args, ctx, info),
       },
     };
 
@@ -244,19 +255,32 @@ class ActionBank {
 
     const typeDefs = gql`
       type Query {
-        getDeposits(userId: ID!): [Deposit]
-        getWithdrawals(userId: ID!): [Withdrawal]
-        getDepositActions(userId: ID!): [DepositAction]
-        getWithdrawalActions(userId: ID!): [WithdrawalAction]
-        getExchanges(userId: ID!): [Exchange]
+        getExchangesByUserId(userId: ID!): [Exchange]
+        getDepositActionsByUserId(userId: ID!): [DepositAction]
+        getWithdrawalActionsByUserId(userId: ID!): [WithdrawalAction]
+        getDepositsByUserId(userId: ID!): [Deposit]
+        getWithdrawalsByUserId(userId: ID!): [Withdrawal]
       }
 
       type Mutation {
+        addExchange(name: String): Exchange
+        editExchange(exchangeId: ID!): Exchange
+        deleteExchange(exchangeId: ID!): ID
+
+        addDepositAction(name: String!): DepositAction
+        editDepositAction(depositID: ID!, name: String): DepositAction
+        deleteDepositAction(depositId: ID!): ID
+
+        addWithdrawalAction(name: String!): WithdrawalAction
+        editWithdrawalAction(withdrawalID: ID!, name: String): WithdrawalAction
+        deleteWithdrawalAction(withDrawalId: ID!): ID
+
         addDeposit(depositActionId: ID!, quantity: Float!): Deposit
-        addWithdrawal(withdrawalActionId: ID!, quantity: Float!): Withdrawal
         editDeposit(depositId: ID!, quantity: Float!): Deposit
-        editWithdrawal(withdrawalId: ID!, quantity: Float!): Deposit
         deleteDeposit(depositId: ID!): ID
+
+        addWithdrawal(withdrawalActionId: ID!, quantity: Float!): Withdrawal
+        editWithdrawal(withdrawalId: ID!, quantity: Float!): Deposit
         deleteWithdrawal(withdrawalId: ID!): ID
       }
 
@@ -314,60 +338,70 @@ class ActionBank {
       }
     `;
 
+    const exchangeResolver = this.exchangeResolver;
+    const depositActionResolver = this.depositActionResolver;
+    const withdrawalActionResolver = this.withdrawalActionResolver;
+    const depositResolver = this.depositResolver;
+    const withdrawalResolver = this.withdrawalResolver;
+
     const resolvers = {
       Query: {
-        getDeposits: async (parent, args, ctx, info) => {
-          throw new QueryDataException('Unimplemented Resolver');
-        },
-        getWithdrawals: async (parent, args, ctx, info) => {
-          throw new QueryDataException('Unimplemented Resolver');
-        },
-        getDepositActions: async (parent, args, ctx, info) => {
-          throw new QueryDataException('Unimplemented Resolver');
-        },
-        getWithdrawalActions: async (parent, args, ctx, info) => {
-          throw new QueryDataException('Unimplemented Resolver');
-        },
-        getExchanges: async (parent, args, ctx, info) => {
-          throw new QueryDataException('Unimplemented Resolver');
-        },
+        getExchangesByUserId: (parent, args, ctx, info) => exchangeResolver.getExchangesByUserId(parent, args, ctx, info),
+        getDepositActionsByUserId: (parent, args, ctx, info) => depositActionResolver.getDepositActionsByUserId(parent, args, ctx, info),
+        getWithdrawalActionsByUserId: (parent, args, ctx, info) => withdrawalActionResolver.getWithdrawalActionByUserId(parent, args, ctx, info),
+        getDepositsByUserId: (parent, args, ctx, info) => depositResolver.getDepositsByUserId(parent, args, ctx, info),
+        getWithdrawalsByUserId: (parent, args, ctx, info) => withdrawalResolver.getWithdrawalsByUserId(parent, args, ctx, info),
       },
       Mutation: {
-        addDeposit: async (parent, args, ctx, info) => {
-          throw new MutateDataException('Unimplemented Resolver');
-        },
-        addWithdrawal: async (parent, args, ctx, info) => {
-          throw new MutateDataException('Unimplemented Resolver');
-        },
-        editDeposit: async (parent, args, ctx, info) => {
-          throw new MutateDataException('Unimplemented Resolver');
-        },
-        editWithdrawal: async (parent, args, ctx, info) => {
-          throw new MutateDataException('Unimplemented Resolver');
-        },
-        deleteDeposit: async (parent, args, ctx, info) => {
-          throw new MutateDataException('Unimplemented Resolver');
-        },
-        deleteWithdrawal: async (parent, args, ctx, info) => {
-          throw new MutateDataException('Unimplemented Resolver');
-        },
+        addExchange: (parent, args, ctx, info) => exchangeResolver.addExchanges(parent, args, ctx, info),
+        editExchange: (parent, args, ctx, info) => exchangeResolver.editExchanges(parent, args, ctx, info),
+        deleteExchange: (parent, args, ctx, info) => exchangeResolver.deleteExchanges(parent, args, ctx, info),
+
+        addDepositAction: (parent, args, ctx, info) => depositActionResolver.addDepositAction(parent, args, ctx, info),
+        editDepositAction: (parent, args, ctx, info) => depositActionResolver.editDepositAction(parent, args, ctx, info),
+        deleteDepositAction: (parent, args, ctx, info) => depositActionResolver.deleteDepositAction(parent, args, ctx, info),
+
+        addWithdrawalAction: (parent, args, ctx, info) => withdrawalActionResolver.addWithdrawalAction(parent, args, ctx, info),
+        editWithdrawalAction: (parent, args, ctx, info) => withdrawalActionResolver.editWithdrawalAction(parent, args, ctx, info),
+        deleteWithdrawalAction: (parent, args, ctx, info) => withdrawalActionResolver.deleteWithdrawalAction(parent, args, ctx, info),
+
+        addDeposit: (parent, args, ctx, info) => depositResolver.addDeposit(parent, args, ctx, info),
+        editDeposit: (parent, args, ctx, info) => depositResolver.editDeposit(parent, args, ctx, info),
+        deleteDeposit: (parent, args, ctx, info) => depositResolver.deleteDeposit(parent, args, ctx, info),
+
+        addWithdrawal: (parent, args, ctx, info) => withdrawalResolver.addWithdrawal(parent, args, ctx, info),
+        editWithdrawal: (parent, args, ctx, info) => withdrawalResolver.editWithdrawal(parent, args, ctx, info),
+        deleteWithdrawal: (parent, args, ctx, info) => withdrawalResolver.deleteWithdrawal(parent, args, ctx, info),
       },
     };
 
     const permissions = {
       Query: {
-        getDeposits: this.guardByLoggedInUser(),
-        getWithdrawals: this.guardByLoggedInUser(),
-        getDepositActions: this.guardByLoggedInUser(),
-        getWithdrawalActions: this.guardByLoggedInUser(),
-        getExchanges: this.guardByLoggedInUser(),
+        getExchangesByUserId: this.guardByLoggedInUser(),
+        getDepositActionsByUserId: this.guardByLoggedInUser(),
+        getWithdrawalActionsByUserId: this.guardByLoggedInUser(),
+        getDepositsByUserId: this.guardByLoggedInUser(),
+        getWithdrawalsByUserId: this.guardByLoggedInUser(),
       },
       Mutation: {
+        addExchange: this.guardByLoggedInUser(),
+        editExchange: this.guardByLoggedInUser(),
+        deleteExchange: this.guardByLoggedInUser(),
+
+        addDepositAction: this.guardByLoggedInUser(),
+        editDepositAction: this.guardByLoggedInUser(),
+        deleteDepositAction: this.guardByLoggedInUser(),
+
+        addWithdrawalAction: this.guardByLoggedInUser(),
+        editWithdrawalAction: this.guardByLoggedInUser(),
+        deleteWithdrawalAction: this.guardByLoggedInUser(),
+
         addDeposit: this.guardByLoggedInUser(),
-        addWithdrawal: this.guardByLoggedInUser(),
         editDeposit: this.guardByLoggedInUser(),
-        editWithdrawal: this.guardByLoggedInUser(),
         deleteDeposit: this.guardByLoggedInUser(),
+
+        addWithdrawal: this.guardByLoggedInUser(),
+        editWithdrawal: this.guardByLoggedInUser(),
         deleteWithdrawal: this.guardByLoggedInUser(),
       },
     };
@@ -516,10 +550,6 @@ class ActionBank {
     );
   }
 
-  private hashPassword(password: string): string {
-    return hashSync(password, 12);
-  }
-
   /*************************************************************************************
    * User Functions
    ********************************************************************************** */
@@ -574,452 +604,6 @@ class ActionBank {
     };
 
     await next();
-  }
-
-  async getUserById(parent, args, ctx, info) {
-    if (!isRecord(args)
-      || typeof args?.id !== 'string'
-    ) {
-      // throw new UserInputError('Invalid args value');
-      return null;
-    }
-
-    let user: User;
-    try {
-      user = await this.dataController.userController.getUserById(args.id);
-    } catch(e) {
-      // throw new Error(`Data controller error: ${e}`);
-      return null;
-    }
-
-    return user.graphQLObject;
-  }
-
-  private async getUserByUsername(parent, args, ctx, info) {
-    if (!isRecord(args)
-      || typeof args?.username !== 'string'
-    ) {
-      // throw new UserInputError('Invalid args value');
-      return null;
-    }
-
-    let user: User;
-    try {
-      user = await this.dataController.userController.getUserByUsername(args.username);
-    } catch(e) {
-      // throw new Error(`Data controller error: ${e}`);
-      return null;
-    }
-
-    return user.graphQLObject;
-  }
-
-  private async getUsers(parent, args, ctx, info) {
-    if (!isRecord(args)) {
-      return null;
-    }
-
-    const pagination = typeof args?.pagination === 'number'
-      ? args.pagination
-      : 10;
-
-    const page = typeof args?.page === 'number'
-      ? args.page
-      : 1;
-
-    const users = await this.dataController.userController.getUsers(pagination, page);
-
-    const output = users.map((el) => el.graphQLObject);
-
-    return output;
-  }
-
-  private async addUser(parent, args, ctx, info) {
-    if (!isRecord(args)
-      || typeof args?.password != 'string'
-    ) {
-      return null;
-    }
-
-    let nUser: NewUser;
-    try {
-      const password = this.hashPassword(args?.password);
-      nUser = NewUser.fromJson({
-        ...args,
-        password,
-      }, this.context.userTypeMap);
-    } catch(e) {
-      throw new UserInputError('Invalid Data Provided', {
-        argumentName: 'userData'
-      });
-    }
-
-    let savedUser: User;
-
-    try {
-      savedUser = await this.dataController.userController.addUser(nUser);
-    } catch(e) {
-      if (e instanceof UserExistsException) {
-        throw new MutateDataException('Username already exists');
-      }
-
-      if(e instanceof EmailExistsException) {
-        throw new MutateDataException('Email already exists');
-      }
-
-      throw new MutateDataException(`Error while saving user: ${e}`);
-    }
-
-    return savedUser.graphQLObject;
-  }
-
-  private async editUser(parent, args, ctx, info) {
-    if (!isRecord(args) || typeof args?.id !== 'string') {
-      return null;
-    }
-
-    if (!isRecord(ctx)
-      || !isRecord(ctx.koaCtx)
-      || !isRecord(ctx.koaCtx.state)
-      || !isRecord(ctx.koaCtx.state.user)
-    ) {
-      throw new MutateDataException('Invalid User Data');
-    }
-
-    let requestingUser: UserToken;
-
-    try {
-      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
-    } catch(e) {
-      throw new MutateDataException('Invalid Login Data');
-    }
-
-    if (requestingUser.userId !== args.id) {
-      throw new AuthenticationError('You can only update your own User information');
-    }
-
-    let currentUserState: User;
-    try {
-      currentUserState = await this.dataController.userController.getUserById(args.id);
-    } catch(e) {
-      throw new MutateDataException('Invalid ID Provided');
-    }
-
-    const editUserState = currentUserState.mergeEdits(args, this.context.userTypeMap);
-
-    let result: User;
-    try {
-      result = await this.dataController.userController.editUser(editUserState);
-    } catch (e) {
-      let msg = '';
-      if (e instanceof EmailExistsException) {
-        msg += 'Email already exists for another user.';
-      } else if (e instanceof UserExistsException) {
-        msg += 'Username already exists for another user.';
-      } else {
-        msg += `${e}`;
-      }
-
-      throw new MutateDataException(msg);
-    }
-
-    return result.graphQLObject;
-  }
-
-  private async adminEditUser(parent, args, ctx, info) {
-    if (!isRecord(args) || typeof args?.id !== 'string') {
-      return null;
-    }
-
-    if (!isRecord(ctx)
-      || !isRecord(ctx.koaCtx)
-      || !isRecord(ctx.koaCtx.state)
-      || !isRecord(ctx.koaCtx.state.user)
-    ) {
-      throw new MutateDataException('Invalid User Data');
-    }
-
-    let requestingUser: UserToken;
-
-    try {
-      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
-    } catch(e) {
-      throw new MutateDataException('Invalid Login Data');
-    }
-
-    const userTypeMap = this.context.userTypeMap;
-
-    // We need to check two things:
-    // The user isn't updating a higher rank user
-    // The user is promoting someone else to a higher rank than their own.
-    const requestingUserType = userTypeMap.getUserType(requestingUser.userType);
-
-    // Here we check if a user is updating another user to a higher level than their
-    // own user type.
-    if (typeof args.userType === 'string') {
-      const updatedUserType = userTypeMap.getUserType(args.userType);
-      if (userTypeMap.compareUserTypeLevels(requestingUserType, updatedUserType) < 0) {
-        throw new MutateDataException('Cannot update a user to a higher level than your own');
-      }
-    }
-
-    // We get the current user.
-    let currentUserState: User;
-    try {
-      currentUserState = await this.dataController.userController.getUserById(args.id);
-    } catch(e) {
-      throw new MutateDataException('Invalid ID Provided');
-    }
-
-    // Here we check if a user is updating another user of a higher level than their
-    // own user type.
-    if (userTypeMap.compareUserTypeLevels(requestingUserType, currentUserState.userType) < 0) {
-      throw new MutateDataException('Cannot update a user of a higher level than your own');
-    }
-
-    const userData = { ...args };
-
-    if (typeof args.password === 'string' && this.validatePassword(args.password)) {
-      userData.passwordHash = this.hashPassword(args.password);
-    }
-
-    const editUserState = currentUserState.mergeEdits(userData, userTypeMap);
-
-    let result: User;
-    try {
-      result = await this.dataController.userController.editUser(editUserState);
-    } catch (e) {
-      let msg = '';
-      if (e instanceof EmailExistsException) {
-        msg += 'Email already exists for another user.';
-      } else if (e instanceof UserExistsException) {
-        msg += 'Username already exists for another user.';
-      } else {
-        msg += `${e}`;
-      }
-
-      throw new MutateDataException(msg);
-    }
-
-    return result.graphQLObject;
-  }
-
-  private async updatePassword(parent, args, ctx, info) {
-    if (!isRecord(args)
-      || typeof args?.id !== 'string'
-      || typeof args?.newPassword !== 'string'
-      || typeof args?.oldPassword !== 'string'
-      || !isRecord(ctx)
-      || !isRecord(ctx.koaCtx)
-      || !isRecord(ctx.koaCtx.state)
-      || !isRecord(ctx.koaCtx.state.user)
-    ) {
-      throw new MutateDataException('Invalid Input');
-    }
-
-    if (!this.validatePassword(args.newPassword)) {
-      throw new MutateDataException('Invalid Password. Password must be 8 characters or longer');
-    }
-
-    // We prevent a user from editing a user of a higher level. e.g. admin user types
-    // cannot edit super admins.
-    let user: User;
-    try {
-      user = await this.dataController.userController.getUserById(args.id);
-    } catch(e) {
-      throw new MutateDataException('User does not exist');
-    }
-
-    // We check the old password to make sure it's correct
-    if (!compareSync(args.oldPassword, user.passwordHash)) {
-      throw new MutateDataException('Invalid User Password');
-    }
-
-    let requestingUser: UserToken;
-
-    try {
-      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
-    } catch(e) {
-      throw new MutateDataException('Invalid Login Data');
-    }
-
-    const userErr = this.canUpdatePassword(requestingUser, user);
-    if (userErr.length > 0) {
-      throw new MutateDataException('Cannot update password');
-    }
-
-    try {
-      await this.dataController.userController.updatePassword(
-        user.id,
-        this.hashPassword(args.newPassword),
-      );
-    } catch (e) {
-      const msg = `${e}`;
-
-      throw new MutateDataException(msg);
-    }
-
-    return args.id;
-  }
-
-  private canUpdatePassword(requester: UserToken, currentEditedUser: User): string {
-    const userTypeMap = this.context.userTypeMap;
-
-    const requesterType = userTypeMap.getUserType(requester?.userType);
-
-    // compareUserTypeLevels will compare the first userType to the second. If the first
-    // is lower than the second, it will return a value less than 1.
-    if (userTypeMap.compareUserTypeLevels(requesterType, currentEditedUser.userType) < 0) {
-      return 'Cannot edit a user of a higher level';
-    }
-
-    return '';
-  }
-
-  /**
-   * Used to validate whether a password is correct. Any rules that you want
-   * to apply to a password should be here
-   *
-   * @param newPassword string
-   * @returns boolean
-   */
-  private validatePassword(newPassword: string): boolean {
-    return newPassword.length >= 8;
-  }
-
-  private async getPasswordResetToken(ctx: ParameterizedContext, next: Next) {
-    const body = ctx?.request?.body;
-
-    if (!isRecord(body)) {
-      ctx.throw(400, 'Invalid Credentials');
-    }
-
-    const reqUser = body.user;
-
-    if ( !isRecord(reqUser)
-      || typeof reqUser?.id !== 'string'
-      || typeof reqUser?.password !== 'string'
-    ) {
-      ctx.throw(400, 'Invalid Credentials');
-    }
-
-    await next();
-  }
-
-  private async updatePasswordWithToken(ctx: ParameterizedContext, next: Next) {
-    // const body = ctx?.request?.body;
-
-    // if (!isRecord(body)) {
-    //   ctx.throw(400, 'Invalid Credentials');
-    // }
-
-    // const reqUser = body.user;
-
-    // if (!isRecord(reqUser)
-    //   || typeof reqUser?.id !== 'string'
-    //   || typeof reqUser?.newPassword !== 'string'
-    //   || typeof reqUser?.passwordToken !== 'string') {
-    //   ctx.throw(400, 'Invalid Credentials');
-    // }
-
-    // if (!this.validatePassword(reqUser.newPassword)) {
-    //   ctx.throw(400, 'Invalid Password. Password must be 8 characters or longer');
-    // }
-
-    // // We prevent a user from editing a user of a higher level. e.g. admin user types
-    // // cannot edit super admins.
-    // let user: User;
-    // try {
-    //   user = await this.dataController.userController.getUserById(reqUser.id);
-    // } catch(e) {
-    //   ctx.throw(400, 'User does not exist');
-    // }
-
-    // if (user.passwordResetToken !== reqUser.passwordResetToken) {
-    //   ctx.throw(400, 'Invalid password reset token');
-    // }
-
-    // const timeout: Date = new Date(Date.now() - this.PASSWORD_TOKEN_TIMEOUT);
-    // const passwordResetDate = new Date(user.passwordResetDate);
-
-    // if (passwordResetDate < timeout) {
-    //   ctx.throw(400, 'Password reset token has expired');
-    // }
-
-    // const userErr = this.canUpdatePassword(ctx, user);
-    // if (userErr.length > 0) {
-    //   ctx.throw(400, userErr);
-    // }
-
-    // try {
-    //   await this.dataController.userController.updatePassword(
-    //     reqUser.id,
-    //     this.hashPassword(reqUser.newPassword),
-    //   );
-    // } catch (e) {
-    //   const msg = `${e}`;
-
-    //   ctx.throw(400, msg);
-    // }
-
-    // ctx.body = {
-    //   message: 'Password Successfully Updated',
-    // };
-
-    // await next();
-  }
-
-  private async deleteUser(parent, args, ctx, info) {
-    if (!isRecord(args)
-      || typeof args?.id !== 'string'
-      || !isRecord(ctx)
-      || !isRecord(ctx.koaCtx)
-      || !isRecord(ctx.koaCtx.state)
-      || !isRecord(ctx.koaCtx.state.user)
-    ) {
-      throw new MutateDataException('Invalid User Data');
-    }
-
-    const delUserId = args.id;
-    let requestingUser: UserToken;
-
-    try {
-      requestingUser = UserToken.fromJson(ctx.koaCtx.state.user);
-    } catch(e) {
-      throw new MutateDataException('Invalid Login Data');
-    }
-
-    // We prevent our user from deleting themself.
-    if (requestingUser.userId === delUserId) {
-      throw new MutateDataException('You cannot delete yourself');
-    }
-
-    // We prevent a user from deleting a user of a higher level. e.g. admin user types
-    // cannot delete super admins.
-    let deletedUser: User;
-    try {
-      deletedUser = await this.dataController.userController.getUserById(delUserId);
-    } catch(e) {
-      throw new MutateDataException('User does not exist');
-    }
-
-    // There should be no problem here. We use filterByUserType to make sure that the
-    // userType actually exists.
-    const requesterType = this.context.userTypeMap.getUserType(requestingUser?.userType);
-
-    // compareUserTypeLevels will compare the first userType to the second. If the first
-    // is lower than the second, it will return a value less than 1.
-    if (this.context.userTypeMap.compareUserTypeLevels(requesterType, deletedUser.userType) < 0) {
-      throw new MutateDataException('Cannot delete a user of a higher level');
-    }
-
-    try {
-      await this.dataController.userController.deleteUser(delUserId);
-    } catch(e) {
-      throw new MutateDataException('User does not exist');
-    }
-
-    return delUserId;
   }
 
   /*************************************************************************************

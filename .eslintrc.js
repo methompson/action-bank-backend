@@ -31,7 +31,7 @@ module.exports = {
     'jest': true,
   },
   extends: [
-    "plugin:jest/recommended"
+    'plugin:jest/recommended'
   ],
   parserOptions: {
     project: 'tsconfig.json',
@@ -39,21 +39,19 @@ module.exports = {
   },
   parser: '@typescript-eslint/parser',
   rules: {
-    "jest/no-disabled-tests": "warn",
-    "jest/no-focused-tests": "error",
-    "jest/no-identical-title": "error",
-    "jest/prefer-to-have-length": "warn",
-    "jest/valid-expect": "error",
+    'jest/no-disabled-tests': 'warn',
+    'jest/no-focused-tests': 'error',
+    'jest/no-identical-title': 'error',
+    'jest/prefer-to-have-length': 'warn',
+    'jest/valid-expect': 'error',
+    'eqeqeq': [ 'error' ],
+    'semi': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
-    'eqeqeq': [
-      'error',
-      'smart'
-    ],
     '@typescript-eslint/require-await': 'off',
     '@typescript-eslint/no-empty-function': 'off',
     '@typescript-eslint/restrict-template-expressions': 'off',
     '@typescript-eslint/no-unsafe-assignment': 'off',
-    'semi': 'off',
     '@typescript-eslint/semi': ['error'],
+    '@typescript-eslint/ban-types': ['error'],
   }
 };

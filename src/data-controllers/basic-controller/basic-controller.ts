@@ -1,7 +1,8 @@
-import { DataController, UserController } from '@root/data-controllers/interfaces/';
+import { BankController, DataController, UserController } from '@root/data-controllers/interfaces/';
 import { ProgramContext } from '@dataTypes';
 
 import BasicUserController from './basic-user-controller';
+import BasicBankController from './basic-bank-controller';
 import { UserExistsException } from '@root/exceptions/user-exceptions';
 
 class BasicDataController extends DataController {
@@ -10,9 +11,10 @@ class BasicDataController extends DataController {
   constructor(
     programContext: ProgramContext,
     userController: UserController,
+    bankController: BankController,
     options?: Record<string, unknown>
   ) {
-    super(programContext, userController);
+    super(programContext, userController, bankController, options);
     this._constructionOptions = options ?? {};
   }
 
@@ -22,13 +24,18 @@ class BasicDataController extends DataController {
       :'./';
 
     const userController = new BasicUserController(dataLocation, programContext);
+    const bankController = new BasicBankController(dataLocation, programContext);
 
     try {
       await userController.readUserData();
-
     } catch(e) {
       console.log('Read error');
-      throw new UserExistsException('Read Error');
+    }
+
+    try {
+      await bankController.readBankData();
+    } catch(e) {
+      console.log('Bank error');
     }
 
     console.log('initialized');
@@ -36,6 +43,7 @@ class BasicDataController extends DataController {
     return new BasicDataController(
       programContext,
       userController,
+      bankController,
       options,
     );
   }

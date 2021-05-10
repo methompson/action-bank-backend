@@ -1,21 +1,25 @@
 import UserController from './user-controller';
+import BankController from './bank-controller';
+
 import ProgramContext from '@dataTypes/program-context';
-import { UserExistsException } from '@root/exceptions/user-exceptions';
 
 abstract class DataController {
   programContext: ProgramContext;
 
   protected _userController: UserController;
+  protected _bankController: BankController;
 
-  get userController(): UserController {
-    return this._userController;
-  }
+  get userController(): UserController { return this._userController; }
+  get bankController(): BankController { return this._bankController; }
 
   constructor(
     programContext: ProgramContext,
     userController: UserController,
+    bankController: BankController,
+    options?: Record<string, unknown>
   ) {
-    this.programContext = programContext,
+    this.programContext = programContext;
+    this._bankController = bankController;
     this._userController = userController;
   }
 

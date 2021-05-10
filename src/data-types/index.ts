@@ -15,7 +15,7 @@ import {
   WithdrawalAction,
   NewWithdrawalAction,
 } from './withdrawal';
-import Exchange from './exchange';
+import {NewExchange, Exchange} from './exchange';
 import { User, NewUser } from './user';
 import ProgramContext from './program-context';
 import UserToken from './user-token';
@@ -40,5 +40,6 @@ export {
   NewWithdrawal,
   WithdrawalAction,
   NewWithdrawalAction,
+  NewExchange,
   Exchange,
 };

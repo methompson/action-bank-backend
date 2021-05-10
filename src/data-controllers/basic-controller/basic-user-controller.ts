@@ -227,7 +227,6 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
     return largestId > 0 ? largestId + 1 : 1;
   }
 
-  // TODO create a lock and queue to prevent bad things from happening.
   async writeUserData(): Promise<void> {
     if (this._userWriteLock === true) {
       console.log("user writelock hit");
@@ -237,7 +236,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
 
     this._userWriteLock = true;
 
-    const userObj: Record<string, unknown>  = {};
+    const userObj: Record<string, unknown> = {};
     Object.values(this._users).forEach((val) => {
       // const user = this._users[key];
       userObj[val.id] = {
@@ -282,7 +281,8 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
       throw new Error('Invalid JSON format');
     }
 
-    const userData: {[key: string]: User} = {};
+    // const userData: {[key: string]: User} = {};
+    const userData: Record<string, User> = {};
 
     Object.values(rawUserData).forEach((val) => {
       try {
