@@ -15,9 +15,11 @@ import {
   NewWithdrawalAction,
   Withdrawal,
   WithdrawalAction,
+  UserToken,
+  NewWithdrawal,
 } from '@dataTypes';
 import { isRecord } from '@dataTypes/type-guards';
-import { InvalidJSONException } from '@root/exceptions/data-controller-exceptions';
+import { DataDoesNotExistException, InvalidJSONException } from '@root/exceptions/data-controller-exceptions';
 
 // The bank controller will store all of the data points below into a single
 // JSON file for all of the respective data points.
@@ -35,6 +37,8 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
   protected _bankWriteAgain = false;
 
   protected _exchanges: Record<string, Exchange> = {};
+  protected _depositActions: Record<string, DepositAction> = {};
+  protected _withdrawalActions: Record<string, WithdrawalAction> = {};
 
   constructor(dataLocation: string, programContext: ProgramContext) {
     super(programContext);
@@ -52,6 +56,8 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
 
     const bankData = new BankData(
       this._exchanges,
+      this._depositActions,
+      this._withdrawalActions,
     );
 
     const loc = path.join(this.dataLocation, this._bankFileName);
@@ -93,21 +99,18 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
     const bankData = BankData.fromJson(rawBankData);
 
     this._exchanges = bankData.exchanges;
+    this._depositActions = bankData.depositActions;
+    this._withdrawalActions = bankData.withdrawalActions;
   }
 
-  protected idExists(id: string): boolean {
-    const exists = id in this._exchanges;
-    return exists;
-  }
-
-  async addExchange(userId: string, exchange: NewExchange): Promise<Exchange> {
+  async addExchange(exchange: NewExchange): Promise<Exchange> {
     let id: string;
     // We'll get a unique ID
     do {
       id = uuidv4();
-    } while(this.idExists(id));
+    } while(this.idExists(id, this._exchanges));
 
-    const ex = Exchange.fromNewExchange(id, userId, exchange);
+    const ex = Exchange.fromNewExchange(id, exchange);
 
     this._exchanges[ex.id] = ex;
 
@@ -116,52 +119,195 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
     return ex;
   }
 
-  async getExchangeById(id: string): Promise<Exchange> {
-    throw new Error('Unimplemented');
+  async getExchangeById(userId: string): Promise<Exchange> {
+    const ex = this._exchanges[userId];
+
+    if (ex === undefined) {
+      throw new DataDoesNotExistException('Exchange Does Not Exist');
+    }
+
+    return ex;
   }
 
-  async getExchangesByUserId(id: string): Promise<Exchange[]> {
-    throw new Error('Unimplemented');
+  async getExchangesByUserId(userId: string): Promise<Exchange[]> {
+    const exchanges: Exchange[] = [];
+    Object.values(this._exchanges).forEach((ex) => {
+      if (ex.userId === userId) {
+        exchanges.push(ex);
+      }
+    });
+
+    return exchanges;
   }
 
-  async editExchange(exhcnage: Exchange): Promise<Exchange> {
-    throw new Error('Unimplemented');
+  async editExchange(exchangeId: string, name: string): Promise<Exchange> {
+    const oldEx = this._exchanges[exchangeId];
+
+    if (oldEx === undefined) {
+      throw new Error('Exchange does not exist');
+    }
+
+    const ex = new Exchange(
+      oldEx.id,
+      oldEx.userId,
+      name,
+      oldEx.depositActions,
+      oldEx.withdrawalActions,
+      oldEx.deposits,
+      oldEx.withdrawals,
+    );
+
+    this._exchanges[exchangeId] = ex;
+
+    this.writeBankData();
+
+    return ex;
   }
 
-  async deleteExchange(id: string): Promise<string> {
-    throw new Error('Unimplemented');
+  async deleteExchange(exchangeId: string): Promise<string> {
+    const ex = this._exchanges[exchangeId];
+
+    if (ex === undefined) {
+      throw new Error('Exchange does not exist');
+    }
+
+    delete this._exchanges[exchangeId];
+
+    this.writeBankData();
+
+    return exchangeId;
   }
 
-  async getDepositActionById(id: string): Promise<DepositAction> {
-    throw new Error('Unimplemented');
+  async getDepositActionById(depositActionId: string): Promise<DepositAction> {
+    const ac = this._depositActions[depositActionId];
+
+    if (ac === undefined) {
+      throw new DataDoesNotExistException('Deposit Action Does Not Exist');
+    }
+
+    return ac;
   }
+
   async getDepositActionsByUserId(userId: string): Promise<DepositAction[]> {
-    throw new Error('Unimplemented');
-  }
-  async addDepositAction(userId: string, action: NewDepositAction): Promise<DepositAction> {
-    throw new Error('Unimplemented');
-  }
-  async editDepositAction(action: DepositAction): Promise<DepositAction> {
-    throw new Error('Unimplemented');
-  }
-  async deleteDepositAction(id: string): Promise<null> {
-    throw new Error('Unimplemented');
+    const actions: DepositAction[] = [];
+
+    Object.values(this._depositActions).forEach((ac) => {
+      if (ac.userId === userId) {
+        actions.push(ac);
+      }
+    });
+
+    return actions;
   }
 
-  async getWithdrawalActionById(id: string): Promise<WithdrawalAction> {
-    throw new Error('Unimplemented');
+  async addDepositAction(action: NewDepositAction): Promise<DepositAction> {
+    let id: string;
+    // We'll get a unique ID
+    do {
+      id = uuidv4();
+    } while(this.idExists(id, this._depositActions));
+
+    const ac = DepositAction.fromNewDepositAction(action, id);
+
+    this._depositActions[id] = ac;
+
+    this.writeBankData();
+
+    return ac;
   }
+
+  async editDepositAction(action: DepositAction): Promise<DepositAction> {
+    const oldAction = this._depositActions[action.id];
+
+    if (oldAction === undefined) {
+      throw new Error('Deposit Action Does Not Exist');
+    }
+
+    this._depositActions[action.id] = action;
+
+    this.writeBankData();
+
+    return action;
+  }
+
+  async deleteDepositAction(depositActionId: string): Promise<string> {
+    const ac = this._depositActions[depositActionId];
+
+    if (ac === undefined) {
+      throw new DataDoesNotExistException('Deposit Action Does Not Exist');
+    }
+
+    delete this._depositActions[depositActionId];
+
+    this.writeBankData();
+
+    return depositActionId;
+  }
+
+  async getWithdrawalActionById(withdrawalActionid: string): Promise<WithdrawalAction> {
+    const ac = this._withdrawalActions[withdrawalActionid];
+
+    if (ac === undefined) {
+      throw new DataDoesNotExistException('Withdrawal Action Does Not Exist');
+    }
+
+    return ac;
+  }
+
   async getWithdrawalActionsByUserId(userId: string): Promise<WithdrawalAction[]> {
-    throw new Error('Unimplemented');
+    const actions: WithdrawalAction[] = [];
+
+    Object.values(this._withdrawalActions).forEach((ac) => {
+      if (ac.userId === userId) {
+        actions.push(ac);
+      }
+    });
+
+    return actions;
   }
-  async addWithdrawalAction(userId: string, action: NewWithdrawalAction): Promise<WithdrawalAction> {
-    throw new Error('Unimplemented');
+
+  async addWithdrawalAction(action: NewWithdrawalAction): Promise<WithdrawalAction> {
+    let id: string;
+    // We'll get a unique ID
+    do {
+      id = uuidv4();
+    } while(this.idExists(id, this._depositActions));
+
+    const ac = WithdrawalAction.fromNewWithdrawalAction(action, id);
+
+    this._withdrawalActions[id] = ac;
+
+    this.writeBankData();
+
+    return ac;
   }
+
   async editWithdrawalAction(action: WithdrawalAction): Promise<WithdrawalAction> {
-    throw new Error('Unimplemented');
+    const oldAction = this._withdrawalActions[action.id];
+
+    if (oldAction === undefined) {
+      throw new Error('Withdrawal Action Does Not Exist');
+    }
+
+    this._withdrawalActions[action.id] = action;
+
+    this.writeBankData();
+
+    return action;
   }
-  async deleteWithdrawalAction(userId: string): Promise<string> {
-    throw new Error('Unimplemented');
+
+  async deleteWithdrawalAction(withdrawalActionId: string): Promise<string> {
+    const ac = this._withdrawalActions[withdrawalActionId];
+
+    if (ac === undefined) {
+      throw new DataDoesNotExistException('Withdrawal Action Does Not Exist');
+    }
+
+    delete this._withdrawalActions[withdrawalActionId];
+
+    this.writeBankData();
+
+    return withdrawalActionId;
   }
 
   async getDepositById(id: string): Promise<Deposit> {
@@ -173,7 +319,7 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
   async getDepositsByDepositActionId(actionId: string): Promise<Deposit[]> {
     throw new Error('Unimplemented');
   }
-  async addDeposit(userId: string, deposit: NewDeposit): Promise<Deposit> {
+  async addDeposit(deposit: NewDeposit): Promise<Deposit> {
     throw new Error('Unimplemented');
   }
   async editDeposit(deposit: Deposit): Promise<Deposit> {
@@ -192,7 +338,7 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
   async getWithdrawalsByWithdrawalActionId(actionId: string): Promise<Withdrawal[]> {
     throw new Error('Unimplemented');
   }
-  async addWithdrawal(userId: string, withdrawal: Withdrawal): Promise<Withdrawal> {
+  async addWithdrawal(withdrawal: NewWithdrawal): Promise<Withdrawal> {
     throw new Error('Unimplemented');
   }
   async editWithdrawal(withdrawal: Withdrawal): Promise<Withdrawal> {
@@ -205,33 +351,59 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
 
 class BankData {
   constructor(
-    public exchanges: Record<string, Exchange>
+    public exchanges: Record<string, Exchange>,
+    public depositActions: Record<string, DepositAction>,
+    public withdrawalActions: Record<string, WithdrawalAction>,
   ) {}
 
   toJSON() {
     return {
-      exchanges: this.exchanges,
+      exchanges: Object.values(this.exchanges),
+      depositActions: Object.values(this.depositActions),
+      withdrawalActions: Object.values(this.withdrawalActions),
     };
   }
 
   static fromJson(rawJson: unknown): BankData {
     if (!isRecord(rawJson)
-      || !isRecord(rawJson.exchanges)
+      || !Array.isArray(rawJson.exchanges)
+      || !Array.isArray(rawJson.depositActions)
+      || !Array.isArray(rawJson.withdrawalActions)
     ) {
       throw new InvalidJSONException('Invalid Data');
     }
 
     const exchangesMap: Record<string, Exchange> = {};
 
-    Object.values(rawJson.exchanges).forEach((val) => {
+    rawJson.exchanges.forEach((val) => {
       try {
-        const ex = Exchange.fromJson(val);
+        const ex = Exchange.fromJSON(val);
         exchangesMap[ex.id] = ex;
+      } catch(_) {}
+    });
+
+    const depositActionMap: Record<string, DepositAction> = {};
+
+    rawJson.depositActions.forEach((val) => {
+      try {
+        const ac = DepositAction.fromJSON(val);
+        depositActionMap[ac.id] = ac;
+      } catch(_) {}
+    });
+
+    const withdrawalActionMap: Record<string, WithdrawalAction> = {};
+
+    rawJson.withdrawalActions.forEach((val) => {
+      try {
+        const ac = WithdrawalAction.fromJSON(val);
+        withdrawalActionMap[ac.id] = ac;
       } catch(_) {}
     });
 
     return new BankData(
       exchangesMap,
+      depositActionMap,
+      withdrawalActionMap,
     );
   }
 }

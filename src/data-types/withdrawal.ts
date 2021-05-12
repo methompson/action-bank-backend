@@ -1,11 +1,27 @@
+import { InvalidJSONException } from "@root/exceptions/data-controller-exceptions";
+import {
+  isBoolean,
+  isNumber,
+  isRecord,
+  isString,
+} from "./type-guards";
+
 class NewWithdrawalAction {
   constructor(
-    public name: string,
-    public uom: string,
-    public uomQuant: number,
-    public withdrawalQuant: number,
-    public enabled: boolean,
+    protected _userId: string,
+    protected _name: string,
+    protected _uom: string,
+    protected _uomQuant: number,
+    protected _withdrawalQuant: number,
+    protected _enabled: boolean,
   ) {}
+
+  get userId(): string { return this._userId; }
+  get name(): string { return this._name; }
+  get uom(): string { return this._uom; }
+  get uomQuant(): number { return this._uomQuant; }
+  get withdrawalQuant(): number { return this._withdrawalQuant; }
+  get enabled(): boolean { return this._enabled; }
 
   get exchangeRate(): number {
     return this.withdrawalQuant / this.uomQuant;
@@ -18,46 +34,94 @@ class NewWithdrawalAction {
 
 class WithdrawalAction extends NewWithdrawalAction {
   constructor(
-    public id: string,
+    protected _id: string,
+    userId: string,
     name: string,
     uom: string,
     uomQuant: number,
     withdrawalQuant: number,
     enabled: boolean,
-    public sortedLocation: number,
-    public dateAdded: number,
-    public dateUpdated: number,
+    protected _sortedLocation: number,
+    protected _dateAdded: number,
+    protected _dateUpdated: number,
   ) {
-    super(name, uom, uomQuant, withdrawalQuant, enabled);
+    super(userId, name, uom, uomQuant, withdrawalQuant, enabled);
   }
 
-  static makeFromNewWithdrawalAction(
+  get id(): string { return this._id; }
+  get sortedLocation(): number { return this._sortedLocation; }
+  get dateAdded(): number { return this._dateAdded; }
+  get dateUpdated(): number { return this._dateUpdated; }
+
+  toJSON() {
+    return {
+      id: this.id,
+      userId: this.userId,
+      name: this.name,
+      uom: this.uom,
+      uomQuant: this.uomQuant,
+      withdrawalQuant: this.withdrawalQuant,
+      enabled: this.enabled,
+      sortedLocation: this.sortedLocation,
+      dateAdded: this.dateAdded,
+      dateUpdated: this.dateUpdated,
+    };
+  }
+
+  static fromNewWithdrawalAction(
     action: NewWithdrawalAction,
     id: string,
-    sortedLocation: number,
-    dateAdded: number | null,
-    dateUpdated: number | null,
+    sortedLocation?: number | null,
+    dateAdded?: number | null,
+    dateUpdated?: number | null,
   ): WithdrawalAction {
     const now = new Date().getTime();
 
-    const _dateAdded: number = dateAdded === null
-      ? now
-      : dateAdded;
-
-    const _dateUpdated: number = dateUpdated === null
-      ? now
-      : dateUpdated;
+    const _sortedLocation = sortedLocation ?? -1;
+    const _dateAdded: number = dateAdded ?? now;
+    const _dateUpdated: number = dateUpdated ?? now;
 
     return new WithdrawalAction(
       id,
+      action.userId,
       action.name,
       action.uom,
       action.uomQuant,
       action.withdrawalQuant,
       action.enabled,
-      sortedLocation,
+      _sortedLocation,
       _dateAdded,
       _dateUpdated,
+    );
+  }
+
+  static fromJSON(rawJson: unknown): WithdrawalAction {
+    if (!isRecord(rawJson)
+      || !isString(rawJson.id)
+      || !isString(rawJson.userId)
+      || !isString(rawJson.name)
+      || !isString(rawJson.uom)
+      || !isNumber(rawJson.uomQuant)
+      || !isNumber(rawJson.withdrawalQuant)
+      || !isBoolean(rawJson.enabled)
+      || !isNumber(rawJson.sortedLocation)
+      || !isNumber(rawJson.dateAdded)
+      || !isNumber(rawJson.dateUpdated)
+    ) {
+      throw new InvalidJSONException('Invalid Data');
+    }
+
+    return new WithdrawalAction(
+      rawJson.id,
+      rawJson.userId,
+      rawJson.name,
+      rawJson.uom,
+      rawJson.uomQuant,
+      rawJson.withdrawalQuant,
+      rawJson.enabled,
+      rawJson.sortedLocation,
+      rawJson.dateAdded,
+      rawJson.dateUpdated,
     );
   }
 }

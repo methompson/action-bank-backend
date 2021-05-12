@@ -16,8 +16,6 @@ import { isRecord, isString } from "./type-guards";
  * from the deposit actions.
  */
 class NewExchange {
-  protected _name: string = '';
-
   protected _depositActions: DepositAction[] = [];
   protected _withdrawalActions: WithdrawalAction[] = [];
 
@@ -27,6 +25,7 @@ class NewExchange {
   protected _totalCurrency = 0;
 
   get name(): string { return this._name; }
+  get userId(): string { return this._userId; }
 
   get totalCurrency(): number { return this._totalCurrency; }
 
@@ -55,13 +54,13 @@ class NewExchange {
   }
 
   constructor(
-    name: string,
+    protected _name: string,
+    protected _userId: string,
     depositActions?: DepositAction[] | null,
     withdrawalActions?: WithdrawalAction[] | null,
     deposits?: Deposit[] | null,
     withdrawals?: Withdrawal[] | null,
   ) {
-    this._name = name;
     this._depositActions = depositActions ?? [];
     this._withdrawalActions = withdrawalActions ?? [];
     this._deposits = deposits ?? [];
@@ -101,18 +100,17 @@ class NewExchange {
 
 class Exchange extends NewExchange {
   get id(): string { return this._id; }
-  get userId(): string { return this._userId; }
 
   constructor(
     protected _id: string,
-    protected _userId: string,
+    userId: string,
     name: string,
     depositActions?: DepositAction[] | null,
     withdrawalActions?: WithdrawalAction[] | null,
     deposits?: Deposit[] | null,
     withdrawals?: Withdrawal[] | null,
   ) {
-    super(name, depositActions, withdrawalActions, deposits, withdrawals);
+    super(name, userId, depositActions, withdrawalActions, deposits, withdrawals);
   }
 
   toJSON() {
@@ -123,10 +121,10 @@ class Exchange extends NewExchange {
     };
   }
 
-  static fromNewExchange(id: string, userId: string, newExchange: NewExchange) {
+  static fromNewExchange(id: string, newExchange: NewExchange) {
     return new Exchange(
       id,
-      userId,
+      newExchange.userId,
       newExchange.name,
       newExchange.depositActions,
       newExchange.withdrawalActions,
@@ -135,7 +133,7 @@ class Exchange extends NewExchange {
     );
   }
 
-  static fromJson(rawJson: unknown): Exchange {
+  static fromJSON(rawJson: unknown): Exchange {
     if (!isRecord(rawJson)
       || !isString(rawJson.id)
       || !isString(rawJson.userId)

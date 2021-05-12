@@ -19,6 +19,11 @@ abstract class BasicDataControllerBase {
   constructor(programContext: ProgramContext) {
     this.programContext = programContext;
   }
+
+  protected idExists(id: string, map: Record<string, unknown>): boolean {
+    const exists = id in map;
+    return exists;
+  }
 }
 
 export default BasicDataControllerBase;

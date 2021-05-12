@@ -14,6 +14,10 @@ function isString(value: string | unknown | null | undefined): value is string {
   return typeof value === 'string';
 }
 
+function isNumber(value: number | unknown | null | undefined): value is number {
+  return typeof value === 'number';
+}
+
 function isBoolean(value: boolean | unknown | null | undefined): value is boolean {
   return typeof value === 'boolean';
 }
@@ -35,6 +39,7 @@ function isActionBankOptions(value: Record<string, unknown> | unknown | null | u
 export {
   isRecord,
   isString,
+  isNumber,
   isBoolean,
   isProgramContext,
   isActionBankOptions,

@@ -9,45 +9,46 @@ import {
   NewDeposit,
   Withdrawal,
   NewWithdrawal,
+  UserToken,
 } from '@dataTypes';
 
 interface BankController {
   // Exchanges
-  getExchangeById: (id: string) => Promise<Exchange>;
-  getExchangesByUserId: (id: string) => Promise<Exchange[]>;
-  addExchange: (userId: string, exchange: NewExchange) => Promise<Exchange>;
-  editExchange: (exhcnage: Exchange) => Promise<Exchange>;
-  deleteExchange: (id: string) => Promise<string>;
+  getExchangeById: (exchangeId: string) => Promise<Exchange>;
+  getExchangesByUserId: (userId: string) => Promise<Exchange[]>;
+  addExchange: (exchange: NewExchange) => Promise<Exchange>;
+  editExchange: (exchangeId: string, name: string) => Promise<Exchange>;
+  deleteExchange: (exchangeId: string) => Promise<string>;
 
   // Deposit Actions
-  getDepositActionById: (id: string) => Promise<DepositAction>;
+  getDepositActionById: (depositActionId: string) => Promise<DepositAction>;
   getDepositActionsByUserId: (userId: string) => Promise<DepositAction[]>;
-  addDepositAction: (userId: string, action: NewDepositAction) => Promise<DepositAction>;
+  addDepositAction: (action: NewDepositAction) => Promise<DepositAction>;
   editDepositAction: (action: DepositAction) => Promise<DepositAction>;
-  deleteDepositAction: (id: string) => Promise<null>;
+  deleteDepositAction: (depositActionId: string) => Promise<string>;
 
   // Withdrawal Actions
-  getWithdrawalActionById: (id: string) => Promise<WithdrawalAction>;
+  getWithdrawalActionById: (withdrawalId: string) => Promise<WithdrawalAction>;
   getWithdrawalActionsByUserId: (userId: string) => Promise<WithdrawalAction[]>;
-  addWithdrawalAction: (userId: string, action: NewWithdrawalAction) => Promise<WithdrawalAction>;
+  addWithdrawalAction: (action: NewWithdrawalAction) => Promise<WithdrawalAction>;
   editWithdrawalAction: (action: WithdrawalAction) => Promise<WithdrawalAction>;
-  deleteWithdrawalAction: (userId: string) => Promise<string>;
+  deleteWithdrawalAction: (withdrawalId: string) => Promise<string>;
 
   // Deposits
-  getDepositById: (id: string) => Promise<Deposit>;
+  getDepositById: (depositId: string) => Promise<Deposit>;
   getDepositsByUserId: (userId: string) => Promise<Deposit[]>;
   getDepositsByDepositActionId: (actionId: string) => Promise<Deposit[]>;
-  addDeposit: (userId: string, deposit: NewDeposit) => Promise<Deposit>;
+  addDeposit: (deposit: NewDeposit) => Promise<Deposit>;
   editDeposit: (deposit: Deposit) => Promise<Deposit>;
-  deleteDeposit: (userId: string) => Promise<string>;
+  deleteDeposit: (depositId: string) => Promise<string>;
 
   // Withdrawals
-  getWithdrawalById: (id: string) => Promise<Withdrawal>;
+  getWithdrawalById: (withdrawalId: string) => Promise<Withdrawal>;
   getWithdrawalsByUserIdv: (userId: string) => Promise<Withdrawal[]>;
   getWithdrawalsByWithdrawalActionId: (actionId: string) => Promise<Withdrawal[]>;
-  addWithdrawal: (userId: string, withdrawal: Withdrawal) => Promise<Withdrawal>;
+  addWithdrawal: (withdrawal: NewWithdrawal) => Promise<Withdrawal>;
   editWithdrawal: (withdrawal: Withdrawal) => Promise<Withdrawal>;
-  deleteWithdrawal: (userId: string) => Promise<string>;
+  deleteWithdrawal: (withdrawalId: string) => Promise<string>;
 
 }
 

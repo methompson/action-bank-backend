@@ -1,5 +1,6 @@
 import { open, writeFile, mkdir } from 'fs/promises';
 import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 import { UserController } from '@root/data-controllers/interfaces';
 import BasicDataControllerBase from './basic-controller-base';
@@ -98,7 +99,11 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
       throw new EmailExistsException();
     }
 
-    const id = this.getNextUserId();
+    let id: string;
+    // We'll get a unique ID
+    do {
+      id = uuidv4();
+    } while(this.idExists(id, this.users));
 
     const now = Date.now();
 
@@ -212,19 +217,6 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
     }
 
     return null;
-  }
-
-  protected getNextUserId(): number {
-    let largestId = 0;
-
-    Object.keys(this._users).forEach((idString) => {
-      const id = parseInt(idString, 10);
-      if (id > largestId) {
-        largestId = id;
-      }
-    });
-
-    return largestId > 0 ? largestId + 1 : 1;
   }
 
   async writeUserData(): Promise<void> {

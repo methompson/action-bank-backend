@@ -16,7 +16,16 @@ class InvalidJSONException extends Error {
   }
 }
 
+class DataDoesNotExistException extends Error {
+  constructor(...params) {
+    super(...params);
+
+    Object.setPrototypeOf(this, DataDoesNotExistException.prototype);
+  }
+}
+
 export {
   InvalidResultException,
   InvalidJSONException,
+  DataDoesNotExistException,
 };

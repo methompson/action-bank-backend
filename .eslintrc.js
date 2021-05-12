@@ -46,6 +46,8 @@ module.exports = {
     'jest/valid-expect': 'error',
     'eqeqeq': [ 'error' ],
     'semi': 'off',
+    'no-trailing-spaces': ['error', {}],
+    'no-multi-spaces': 'error',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/require-await': 'off',
     '@typescript-eslint/no-empty-function': 'off',
