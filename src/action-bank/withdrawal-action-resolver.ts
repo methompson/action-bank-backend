@@ -20,7 +20,7 @@ class WithdrawalActionResolver extends CommonResolver {
 
   async getWithdrawalActionById(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.withdrawalActionId !== 'string'
+      || !isString(args.withdrawalActionId)
     ){
       throw new QueryDataException('Invalid Data Provided');
     }
@@ -32,10 +32,13 @@ class WithdrawalActionResolver extends CommonResolver {
       throw new QueryDataException('Invalid User Token');
     }
 
-    let withdrawalAction: WithdrawalAction;
-
     try {
-      withdrawalAction = await this.dataController.bankController.getWithdrawalActionById(args.withdrawalActionId);
+      const withdrawalAction = await this.dataController.bankController.getWithdrawalActionById(args.withdrawalActionId);
+      if (withdrawalAction.userId !== userToken.userId) {
+        throw new QueryDataException('Withdrawal Action Does Not Exist');
+      }
+
+      return withdrawalAction;
     } catch (e) {
       if (e instanceof DataDoesNotExistException) {
         throw new QueryDataException('Withdrawal Action Does Not Exist');
@@ -43,17 +46,11 @@ class WithdrawalActionResolver extends CommonResolver {
 
       throw new QueryDataException('Error Retrieving Withdrawal Action');
     }
-
-    if (withdrawalAction.userId !== userToken.userId) {
-      throw new QueryDataException('Withdrawal Action Does Not Exist');
-    }
-
-    return withdrawalAction;
   }
 
   async getWithdrawalActionsByUserId(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.userId !== 'string'
+      || !isString(args.userId)
     ){
       throw new QueryDataException('Invalid Data Provided');
     }
@@ -69,24 +66,22 @@ class WithdrawalActionResolver extends CommonResolver {
       throw new QueryDataException('Invalid user ID');
     }
 
-    let withdrawalActions: WithdrawalAction[];
-
     try {
-      withdrawalActions = await this.dataController.bankController.getWithdrawalActionsByUserId(args.userId);
+      const withdrawalActions = await this.dataController.bankController.getWithdrawalActionsByUserId(args.userId);
+      return withdrawalActions;
     } catch (e) {
       throw new QueryDataException('Error Retrieving Withdrawal Actions');
     }
-
-    return withdrawalActions;
   }
 
   async addWithdrawalAction(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.name !== 'string'
-      || typeof args.uom !== 'string'
-      || typeof args.uomQuant !== 'number'
-      || typeof args.withdrawalQuant !== 'number'
-      || typeof args.enabled !== 'boolean'
+    || !isString(args.exchangeId)
+    || !isString(args.name)
+      || !isString(args.uom)
+      || !isNumber(args.uomQuantity)
+      || !isNumber(args.withdrawalQuantity)
+      || !isBoolean(args.enabled)
     ) {
       throw new MutateDataException('Invalid Data Provided');
     }
@@ -100,27 +95,25 @@ class WithdrawalActionResolver extends CommonResolver {
 
     const newAction = new NewWithdrawalAction(
       userToken.userId,
+      args.exchangeId,
       args.name,
       args.uom,
-      args.uomQuant,
-      args.withdrawalQuant,
+      args.uomQuantity,
+      args.withdrawalQuantity,
       args.enabled,
     );
 
-    let action: WithdrawalAction;
-
     try {
-      action = await this.dataController.bankController.addWithdrawalAction(newAction);
+      const action = await this.dataController.bankController.addWithdrawalAction(newAction);
+      return action;
     } catch(e) {
       throw new MutateDataException('Unable to Add New Withdrawal Action');
     }
-
-    return action;
   }
 
   async editWithdrawalAction(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.withdrawalActionId !== 'string'
+      || !isString(args.withdrawalActionId)
     ){
       throw new MutateDataException('Invalid Data Provided');
     }
@@ -140,18 +133,34 @@ class WithdrawalActionResolver extends CommonResolver {
     }
 
     if (oldAction.userId !== userToken.userId) {
+      throw new MutateDataException('Withdrawal Action Does Not Exist');
+    }
+
+    const exchangeId = isString(args.exchangeId) ? args.exchangeId : oldAction.exchangeId;
+    // We've changed the exchange. Must get the exchange by ID and make sure that the userId
+    // can access this exchange.
+    try {
+      if (exchangeId !== oldAction.exchangeId) {
+        const exchange = await this.dataController.bankController.getExchangeById(exchangeId);
+
+        if (exchange.userId !== userToken.userId) {
+          throw new Error('Unauthorized');
+        }
+      }
+    } catch(e) {
       throw new MutateDataException('Unauthorized');
     }
 
     const name = isString(args.name) ? args.name : oldAction.name;
     const uom = isString(args.uom) ? args.uom : oldAction.uom;
-    const uomQuant = isNumber(args.uomQuant) ? args.uomQuant : oldAction.uomQuant;
-    const withdrawalQuant = isNumber(args.withdrawalQuant) ? args.withdrawalQuant : oldAction.withdrawalQuant;
+    const uomQuant = isNumber(args.uomQuant) ? args.uomQuant : oldAction.uomQuantity;
+    const withdrawalQuant = isNumber(args.withdrawalQuant) ? args.withdrawalQuant : oldAction.withdrawalQuantity;
     const enabled = isBoolean(args.enabled) ? args.enabled : oldAction.enabled;
 
     const newAction = new WithdrawalAction(
       oldAction.id,
       oldAction.userId,
+      exchangeId,
       name,
       uom,
       uomQuant,
@@ -162,28 +171,27 @@ class WithdrawalActionResolver extends CommonResolver {
       new Date().getTime(),
     );
 
-    let returnVal: WithdrawalAction;
     try {
-      returnVal = await this.dataController.bankController.editWithdrawalAction(newAction);
+      const returnVal = await this.dataController.bankController.editWithdrawalAction(newAction);
+
+      return returnVal;
     } catch (e) {
       throw new MutateDataException('Unable to Update Withdrawal Action');
     }
-
-    return returnVal;
   }
 
   async deleteWithdrawalAction(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.withdrawalActionId !== 'string'
+      || !isString(args.withdrawalActionId)
     ){
-      throw new QueryDataException('Invalid Data Provided');
+      throw new MutateDataException('Invalid Data Provided');
     }
 
     let userToken: UserToken;
     try {
       userToken = this.getUserTokenFromContext(ctx);
     } catch(e) {
-      throw new QueryDataException('Invalid User Token');
+      throw new MutateDataException('Invalid User Token');
     }
 
     try {
@@ -194,24 +202,22 @@ class WithdrawalActionResolver extends CommonResolver {
       }
     } catch (e) {
       if (e instanceof DataDoesNotExistException) {
-        throw new QueryDataException('Withdrawal Action Does Not Exist');
+        throw new MutateDataException('Withdrawal Action Does Not Exist');
       }
 
-      throw new QueryDataException('Error Deleting Withdrawal Action');
+      throw new MutateDataException('Error Deleting Withdrawal Action');
     }
 
-    let id: string;
     try {
-      id = await this.dataController.bankController.deleteWithdrawalAction(args.withdrawalActionId);
+      const id = await this.dataController.bankController.deleteWithdrawalAction(args.withdrawalActionId);
+      return id;
     } catch(e) {
       if (e instanceof DataDoesNotExistException) {
-        throw new QueryDataException('Withdrawal Action Does Not Exist');
+        throw new MutateDataException('Withdrawal Action Does Not Exist');
       }
 
-      throw new QueryDataException('Error Deleting Withdrawal Action');
+      throw new MutateDataException('Error Deleting Withdrawal Action');
     }
-
-    return id;
   }
 }
 

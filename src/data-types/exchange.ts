@@ -96,6 +96,20 @@ class NewExchange {
   calculateTotalCurrency() {
     this._totalCurrency = this.totalDeposits - this.totalWithdrawals;
   }
+
+  setActionsAndExchanges(
+    depositActions: DepositAction[],
+    withdrawalActions: WithdrawalAction[],
+    deposits: Deposit[],
+    withdrawals: Withdrawal[]
+  ) {
+    this._depositActions = depositActions;
+    this._withdrawalActions = withdrawalActions;
+    this._deposits = deposits;
+    this._withdrawals = withdrawals;
+
+    this.calculateTotalCurrency();
+  }
 }
 
 class Exchange extends NewExchange {

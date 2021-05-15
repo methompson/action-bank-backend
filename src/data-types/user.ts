@@ -8,15 +8,47 @@ function isObject(val: Record<string, unknown> | unknown | undefined | null): va
 
 class NewUser {
   constructor(
-    public username: string,
-    public email: string,
-    public firstName: string,
-    public lastName: string,
-    public userType: UserType,
-    public passwordHash: string,
-    public userMeta: Record<string, unknown>,
-    public enabled: boolean,
+    protected _username: string,
+    protected _email: string,
+    protected _firstName: string,
+    protected _lastName: string,
+    protected _userType: UserType,
+    protected _passwordHash: string,
+    protected _userMeta: Record<string, unknown>,
+    protected _enabled: boolean,
+    protected _dateAdded: number,
+    protected _dateUpdated: number,
+    protected _passwordResetToken: string,
+    protected _passwordResetDate: number,
   ) {}
+
+  get username(): string { return this._username; }
+  get email(): string { return this._email; }
+  get firstName(): string { return this._firstName; }
+  get lastName(): string { return this._lastName; }
+  get userType(): UserType { return this._userType; }
+  get passwordHash(): string { return this._passwordHash; }
+  get userMeta(): Record<string, unknown> { return this._userMeta; }
+  get enabled(): boolean { return this._enabled; }
+  get dateAdded(): number { return this._dateAdded; }
+  get dateUpdated(): number { return this._dateUpdated; }
+  get passwordResetToken(): string { return this._passwordResetToken; }
+  get passwordResetDate(): number { return this._passwordResetDate; }
+
+  toJSON() {
+    return {
+      username: this.username,
+      email: this.email,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      userType: this.userType,
+      passwordHash: this.passwordHash,
+      userMeta: this.userMeta,
+      enabled: this.enabled,
+      dateAdded: this.dateAdded,
+      dateUpdated:this.dateUpdated,
+    };
+  }
 
   static fromJson(rawJson: unknown, userTypeMap: UserTypeMap): NewUser {
     if (!isObject(rawJson)) {
@@ -42,6 +74,8 @@ class NewUser {
       ? rawJson.userType
       : '';
 
+    const now = new Date().getTime();
+
     const user = new NewUser(
       rawJson.username,
       rawJson.email,
@@ -51,6 +85,10 @@ class NewUser {
       rawJson.password,
       userMeta,
       enabled,
+      now,
+      now,
+      '',
+      0,
     );
 
     return user;
@@ -59,7 +97,7 @@ class NewUser {
 
 class User extends NewUser {
   constructor(
-    public id: string,
+    protected _id: string,
     username: string,
     email: string,
     firstName: string,
@@ -68,10 +106,10 @@ class User extends NewUser {
     passwordHash: string,
     userMeta: Record<string, unknown>,
     enabled: boolean,
-    public passwordResetToken: string,
-    public passwordResetDate: number,
-    public dateAdded: number,
-    public dateUpdated: number,
+    dateAdded: number,
+    dateUpdated: number,
+    passwordResetToken: string,
+    passwordResetDate: number,
   ) {
     super(
       username,
@@ -82,8 +120,14 @@ class User extends NewUser {
       passwordHash,
       userMeta,
       enabled,
+      dateAdded,
+      dateUpdated,
+      passwordResetToken,
+      passwordResetDate,
     );
   }
+
+  get id(): string { return this._id; }
 
   get graphQLObject() {
     return {
@@ -97,6 +141,60 @@ class User extends NewUser {
       dateAdded: this.dateAdded,
       dateUpdated: this.dateUpdated,
     };
+  }
+
+  mergeEdits(data: Record<string, unknown>, userTypeMap: UserTypeMap): User {
+    const username = typeof data.username === 'string'
+      ? data.username
+      : this.username;
+
+    const email = typeof data.email === 'string'
+      ? data.email
+      : this.email;
+    const firstName = typeof data.firstName === 'string'
+      ? data.firstName
+      : this.firstName;
+    const lastName = typeof data.lastName === 'string'
+      ? data.lastName
+      : this.lastName;
+
+    const userType = typeof data.userType === 'string'
+      ? userTypeMap.getUserType(data.userType)
+      : this.userType;
+
+    let userMeta: Record<string, unknown>;
+
+    try {
+      userMeta = typeof data.userMeta === 'string'
+        ? JSON.parse(data.userMeta)
+        : this.userMeta;
+    } catch (e) {
+      userMeta = this.userMeta;
+    }
+
+    const enabled = typeof data.enabled === 'boolean'
+      ? data.enabled
+      : this.enabled;
+
+    const passwordHash = typeof data.passwordHash === 'string'
+      ? data.passwordHash
+      : this.passwordHash;
+
+    return new User(
+      this.id,
+      username,
+      email,
+      firstName,
+      lastName,
+      userType,
+      passwordHash,
+      userMeta,
+      enabled,
+      this.dateAdded,
+      this.dateUpdated,
+      this.passwordResetToken,
+      this.passwordResetDate,
+    );
   }
 
   static fromJson(rawJson: unknown, userTypeMap: UserTypeMap): User {
@@ -148,66 +246,30 @@ class User extends NewUser {
       rawJson.passwordHash,
       rawJson.userMeta,
       rawJson.enabled,
-      rawJson.passwordResetToken,
-      passwordResetDate,
       dateAdded,
       dateUpdated,
+      rawJson.passwordResetToken,
+      passwordResetDate,
     );
 
     return user;
   }
 
-  mergeEdits(data: Record<string, unknown>, userTypeMap: UserTypeMap): User {
-    const username = typeof data.username === 'string'
-      ? data.username
-      : this.username;
-
-    const email = typeof data.email === 'string'
-      ? data.email
-      : this.email;
-    const firstName = typeof data.firstName === 'string'
-      ? data.firstName
-      : this.firstName;
-    const lastName = typeof data.lastName === 'string'
-      ? data.lastName
-      : this.lastName;
-
-    const userType = typeof data.userType === 'string'
-      ? userTypeMap.getUserType(data.userType)
-      : this.userType;
-
-    let userMeta: Record<string, unknown>;
-
-    try {
-      userMeta = typeof data.userMeta === 'string'
-        ? JSON.parse(data.userMeta)
-        : this.userMeta;
-    } catch (e) {
-      userMeta = this.userMeta;
-    }
-
-    const enabled = typeof data.enabled === 'boolean'
-      ? data.enabled
-      : this.enabled;
-
-    const passwordHash = typeof data.passwordHash === 'string'
-      ? data.passwordHash
-      : this.passwordHash;
-
+  static fromNewUser(user: NewUser, id: string): User {
     return new User(
-      this.id,
-      username,
-      email,
-      firstName,
-      lastName,
-      userType,
-      passwordHash,
-      userMeta,
-      enabled,
-      this.passwordResetToken,
-      this.passwordResetDate,
-      this.dateAdded,
-      this.dateUpdated,
+      id,
+      user.username,
+      user.email,
+      user.firstName,
+      user.lastName,
+      user.userType,
+      user.passwordHash,
+      user.userMeta,
+      user.enabled,
+      user.dateAdded,
+      user.dateUpdated,
+      user.passwordResetToken,
+      user.passwordResetDate,
     );
   }
 }

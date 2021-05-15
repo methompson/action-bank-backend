@@ -21,6 +21,7 @@ import {
   UserTypeMap,
   ActionBankOptions,
 } from '@dataTypes';
+import MongoDBDataController from './data-controllers/mongodb-controller/mongodb-controller';
 
 /**
  * The app initialization is asynchronous, so we wrap all of our main app
@@ -49,13 +50,20 @@ void async function startApp() {
       { 'dataLocation': './data/' },
     );
 
+    const mongoDBController = await MongoDBDataController.init(programContext, {
+      username: 'action-bank-root',
+      password: 'action-bank-root-password',
+      url: 'localhost',
+      port: '27017',
+    });
+
     const actionBankOptions: ActionBankOptions = {
       programContext,
     };
 
-    await actionBank.init(bdc, actionBankOptions);
+    await actionBank.init(mongoDBController, actionBankOptions);
   } catch(e) {
-    console.log('Unable to instance data controller', e);
+    console.error('Unable to instance data controller', e);
     process.exit(1);
   }
 

@@ -21,7 +21,7 @@ class UserTypeMap {
     return new UserType('none', 0);
   }
 
-  getUserType(type: string) {
+  getUserType(type: string): UserType {
     if (Object.keys(this.userMap).includes(type) ) {
       return this.userMap[type];
     } else {

@@ -39,6 +39,8 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
   protected _exchanges: Record<string, Exchange> = {};
   protected _depositActions: Record<string, DepositAction> = {};
   protected _withdrawalActions: Record<string, WithdrawalAction> = {};
+  protected _deposits: Record<string, Deposit> = {};
+  protected _withdrawals: Record<string, Withdrawal> = {};
 
   constructor(dataLocation: string, programContext: ProgramContext) {
     super(programContext);
@@ -58,6 +60,8 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
       this._exchanges,
       this._depositActions,
       this._withdrawalActions,
+      this._deposits,
+      this._withdrawals,
     );
 
     const loc = path.join(this.dataLocation, this._bankFileName);
@@ -101,6 +105,8 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
     this._exchanges = bankData.exchanges;
     this._depositActions = bankData.depositActions;
     this._withdrawalActions = bankData.withdrawalActions;
+    this._deposits = bankData.deposits;
+    this._withdrawals = bankData.withdrawals;
   }
 
   async addExchange(exchange: NewExchange): Promise<Exchange> {
@@ -119,14 +125,62 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
     return ex;
   }
 
-  async getExchangeById(userId: string): Promise<Exchange> {
-    const ex = this._exchanges[userId];
+  async getExchangeById(exchangeId: string): Promise<Exchange> {
+    const ex = this._exchanges[exchangeId];
 
     if (ex === undefined) {
       throw new DataDoesNotExistException('Exchange Does Not Exist');
     }
 
+    const dActions = this.getDepositActionsByExchangeId(ex.id);
+    const wActions = this.getWithdrawalActionsByExchangeId(ex.id);
+    const d = this.getDepositsByExchangeId(ex.id);
+    const w = this.getWithdrawalsByExchangeId(ex.id);
+
+    ex.setActionsAndExchanges(
+      dActions,
+      wActions,
+      d,
+      w,
+    );
+
     return ex;
+  }
+
+  private getDepositActionsByExchangeId(exchangeId: string): DepositAction[] {
+    const actions: DepositAction[] = [];
+    Object.values(this._depositActions).forEach((ac) => {
+      if (ac.exchangeId === exchangeId) actions.push(ac);
+    });
+
+    return actions;
+  }
+
+  private getWithdrawalActionsByExchangeId(exchangeId: string): WithdrawalAction[] {
+    const actions: WithdrawalAction[] = [];
+    Object.values(this._withdrawalActions).forEach((ac) => {
+      if (ac.exchangeId === exchangeId) actions.push(ac);
+    });
+
+    return actions;
+  }
+
+  private getDepositsByExchangeId(exchangeId: string): Deposit[] {
+    const deposits: Deposit[] = [];
+    Object.values(this._deposits).forEach((dep) => {
+      if (dep.exchangeId === exchangeId) deposits.push(dep);
+    });
+
+    return deposits;
+  }
+
+  private getWithdrawalsByExchangeId(exchangeId: string): Withdrawal[] {
+    const withdrawals: Withdrawal[] = [];
+    Object.values(this._withdrawals).forEach((w) => {
+      if (w.exchangeId === exchangeId) withdrawals.push(w);
+    });
+
+    return withdrawals;
   }
 
   async getExchangesByUserId(userId: string): Promise<Exchange[]> {
@@ -170,6 +224,22 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
     if (ex === undefined) {
       throw new Error('Exchange does not exist');
     }
+
+    const depositActionsToDelete: DepositAction[] = [];
+    Object.values(this._depositActions).forEach((value) => {
+      if (value.exchangeId === exchangeId) {
+        depositActionsToDelete.push(value);
+      }
+    });
+    this.deleteDepositActions(depositActionsToDelete);
+
+    const withdrawalActionsToDelete: WithdrawalAction[] = [];
+    Object.values(this._withdrawalActions).forEach((value) => {
+      if (value.exchangeId === exchangeId) {
+        withdrawalActionsToDelete.push(value);
+      }
+    });
+    this.deleteWithdrawalActions(withdrawalActionsToDelete);
 
     delete this._exchanges[exchangeId];
 
@@ -237,7 +307,8 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
       throw new DataDoesNotExistException('Deposit Action Does Not Exist');
     }
 
-    delete this._depositActions[depositActionId];
+    // Delete all deposits associated with the action
+    this.deleteDepositActions([ac]);
 
     this.writeBankData();
 
@@ -303,49 +374,214 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
       throw new DataDoesNotExistException('Withdrawal Action Does Not Exist');
     }
 
-    delete this._withdrawalActions[withdrawalActionId];
+    // Delete all withdrawals associated with the action
+    this.deleteWithdrawalActions([ac]);
 
     this.writeBankData();
 
     return withdrawalActionId;
   }
 
-  async getDepositById(id: string): Promise<Deposit> {
-    throw new Error('Unimplemented');
-  }
-  async getDepositsByUserId(userId: string): Promise<Deposit[]> {
-    throw new Error('Unimplemented');
-  }
-  async getDepositsByDepositActionId(actionId: string): Promise<Deposit[]> {
-    throw new Error('Unimplemented');
-  }
-  async addDeposit(deposit: NewDeposit): Promise<Deposit> {
-    throw new Error('Unimplemented');
-  }
-  async editDeposit(deposit: Deposit): Promise<Deposit> {
-    throw new Error('Unimplemented');
-  }
-  async deleteDeposit(userId: string): Promise<string> {
-    throw new Error('Unimplemented');
+  async getDepositById(depositId: string): Promise<Deposit> {
+    const dep = this._deposits[depositId];
+
+    if (dep === undefined) {
+      throw new DataDoesNotExistException('Deposit Does Not Exist');
+    }
+
+    return dep;
   }
 
-  async getWithdrawalById(id: string): Promise<Withdrawal> {
-    throw new Error('Unimplemented');
+  async getDepositsByUserId(userId: string): Promise<Deposit[]> {
+    const deposits: Deposit[] = [];
+
+    Object.values(this._deposits).forEach((dep) => {
+      if (dep.userId === userId) {
+        deposits.push(dep);
+      }
+    });
+
+    return deposits;
   }
-  async getWithdrawalsByUserIdv(userId: string): Promise<Withdrawal[]> {
-    throw new Error('Unimplemented');
+
+  async getDepositsByDepositActionId(depositActionId: string): Promise<Deposit[]> {
+    const deposits: Deposit[] = [];
+
+    Object.values(this._deposits).forEach((dep) => {
+      if (dep.depositActionId === depositActionId) {
+        deposits.push(dep);
+      }
+    });
+
+    return deposits;
   }
-  async getWithdrawalsByWithdrawalActionId(actionId: string): Promise<Withdrawal[]> {
-    throw new Error('Unimplemented');
+
+  async addDeposit(deposit: NewDeposit): Promise<Deposit> {
+    let id: string;
+    // We'll get a unique ID
+    do {
+      id = uuidv4();
+    } while(this.idExists(id, this._deposits));
+
+    const dep = Deposit.fromNewDeposit(deposit, id);
+
+    this._deposits[id] = dep;
+
+    this.writeBankData();
+
+    return dep;
   }
+
+  async editDeposit(deposit: Deposit): Promise<Deposit> {
+    const oldDeposit = this._deposits[deposit.id];
+
+    if (oldDeposit === undefined) {
+      throw new Error('Deposit Does Not Exist');
+    }
+
+    this._deposits[deposit.id] = deposit;
+
+    this.writeBankData();
+
+    return deposit;
+  }
+
+  async deleteDeposit(depositId: string): Promise<string> {
+    const ac = this._deposits[depositId];
+
+    if (ac === undefined) {
+      throw new DataDoesNotExistException('Deposit Does Not Exist');
+    }
+
+    delete this._deposits[depositId];
+
+    this.writeBankData();
+
+    return depositId;
+  }
+
+  async getWithdrawalById(withdrawalId: string): Promise<Withdrawal> {
+    const wd = this._withdrawals[withdrawalId];
+
+    if (wd === undefined) {
+      throw new DataDoesNotExistException('Withdrawal Does Not Exist');
+    }
+
+    return wd;
+  }
+
+  async getWithdrawalsByUserId(userId: string): Promise<Withdrawal[]> {
+    const withdrawals: Withdrawal[] = [];
+
+    Object.values(this._withdrawals).forEach((wd) => {
+      if (wd.userId === userId) {
+        withdrawals.push(wd);
+      }
+    });
+
+    return withdrawals;
+  }
+
+  async getWithdrawalsByWithdrawalActionId(withdrawalActionId: string): Promise<Withdrawal[]> {
+    const withdrawals: Withdrawal[] = [];
+
+    Object.values(this._withdrawals).forEach((wd) => {
+      if (wd.withdrawalActionId === withdrawalActionId) {
+        withdrawals.push(wd);
+      }
+    });
+
+    return withdrawals;
+  }
+
   async addWithdrawal(withdrawal: NewWithdrawal): Promise<Withdrawal> {
-    throw new Error('Unimplemented');
+    let id: string;
+    // We'll get a unique ID
+    do {
+      id = uuidv4();
+    } while(this.idExists(id, this._deposits));
+
+    const wd = Withdrawal.fromNewWithdrawal(withdrawal, id);
+
+    this._withdrawals[id] = wd;
+
+    this.writeBankData();
+
+    return wd;
   }
+
   async editWithdrawal(withdrawal: Withdrawal): Promise<Withdrawal> {
-    throw new Error('Unimplemented');
+    const oldWithdrawal = this._withdrawals[withdrawal.id];
+
+    if (oldWithdrawal === undefined) {
+      throw new Error('Withdrawal Does Not Exist');
+    }
+
+    this._withdrawals[withdrawal.id] = withdrawal;
+
+    this.writeBankData();
+
+    return withdrawal;
   }
-  async deleteWithdrawal(userId: string): Promise<string> {
-    throw new Error('Unimplemented');
+
+  async deleteWithdrawal(withdrawalId: string): Promise<string> {
+    const oldWithdrawal = this._withdrawals[withdrawalId];
+
+    if (oldWithdrawal === undefined) {
+      throw new DataDoesNotExistException('Withdrawal Does Not Exist');
+    }
+
+    delete this._withdrawals[withdrawalId];
+
+    this.writeBankData();
+
+    return withdrawalId;
+  }
+
+  protected deleteDepositActions(actions: DepositAction[]) {
+    const depositsToDelete: string[] = [];
+
+    const actionIds = actions.map((ac) => {
+      return ac.id;
+    });
+
+    // Delete all deposits associated with the action
+    Object.entries(this._deposits).forEach(([key, val]) => {
+      if (actionIds.includes(val.depositActionId)) {
+        depositsToDelete.push(key);
+      }
+    });
+
+    depositsToDelete.forEach((id) => {
+      delete this._deposits[id];
+    });
+
+    actions.forEach((action) => {
+      delete this._depositActions[action.id];
+    });
+  }
+
+  protected deleteWithdrawalActions(actions: WithdrawalAction[]) {
+    const withdrawalsToDelete: string[] = [];
+
+    const actionIds = actions.map((ac) => {
+      return ac.id;
+    });
+
+    // Delete all withdrawals associated with the action
+    Object.entries(this._withdrawals).forEach(([key, val]) => {
+      if (actionIds.includes(val.withdrawalActionId)) {
+        withdrawalsToDelete.push(key);
+      }
+    });
+
+    withdrawalsToDelete.forEach((id) => {
+      delete this._withdrawals[id];
+    });
+
+    actions.forEach((action) => {
+      delete this._withdrawalActions[action.id];
+    });
   }
 }
 
@@ -354,6 +590,8 @@ class BankData {
     public exchanges: Record<string, Exchange>,
     public depositActions: Record<string, DepositAction>,
     public withdrawalActions: Record<string, WithdrawalAction>,
+    public deposits: Record<string, Deposit>,
+    public withdrawals: Record<string, Withdrawal>,
   ) {}
 
   toJSON() {
@@ -361,6 +599,8 @@ class BankData {
       exchanges: Object.values(this.exchanges),
       depositActions: Object.values(this.depositActions),
       withdrawalActions: Object.values(this.withdrawalActions),
+      deposits: Object.values(this.deposits),
+      withdrawals: Object.values(this.withdrawals),
     };
   }
 
@@ -369,6 +609,8 @@ class BankData {
       || !Array.isArray(rawJson.exchanges)
       || !Array.isArray(rawJson.depositActions)
       || !Array.isArray(rawJson.withdrawalActions)
+      || !Array.isArray(rawJson.deposits)
+      || !Array.isArray(rawJson.withdrawals)
     ) {
       throw new InvalidJSONException('Invalid Data');
     }
@@ -400,10 +642,31 @@ class BankData {
       } catch(_) {}
     });
 
+    const depositMap: Record<string, Deposit> = {};
+
+    rawJson.deposits.forEach((val) => {
+      try {
+        const d = Deposit.fromJSON(val);
+        depositMap[d.id] = d;
+      } catch(_) {
+        console.log();
+      }
+    });
+
+    const withdrawalMap: Record<string, Withdrawal> = {};
+    rawJson.withdrawals.forEach((val) => {
+      try {
+        const w = Withdrawal.fromJSON(val);
+        withdrawalMap[w.id] = w;
+      } catch(_) {}
+    });
+
     return new BankData(
       exchangesMap,
       depositActionMap,
       withdrawalActionMap,
+      depositMap,
+      withdrawalMap,
     );
   }
 }

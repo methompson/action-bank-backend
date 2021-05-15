@@ -17,26 +17,28 @@ import {
 class NewDepositAction {
   constructor(
     protected _userId: string,
+    protected _exchangeId: string,
     protected _name: string,
     protected _uom: string,
-    protected _uomQuant: number,
-    protected _depositQuant: number,
+    protected _uomQuantity: number,
+    protected _depositQuantity: number,
     protected _enabled: boolean,
   ) {}
 
   get userId(): string { return this._userId; }
+  get exchangeId(): string { return this._exchangeId; }
   get name(): string { return this._name; }
   get uom(): string { return this._uom; }
-  get uomQuant(): number { return this._uomQuant; }
-  get depositQuant(): number { return this._depositQuant; }
+  get uomQuantity(): number { return this._uomQuantity; }
+  get depositQuantity(): number { return this._depositQuantity; }
   get enabled(): boolean { return this._enabled; }
 
   get exchangeRate(): number {
-    return this.depositQuant / this.uomQuant;
+    return this.depositQuantity / this.uomQuantity;
   }
 
-  getCost(actionQuant: number): number {
-    return actionQuant * this.exchangeRate;
+  getCost(actionQuantity: number): number {
+    return actionQuantity * this.exchangeRate;
   }
 }
 
@@ -46,16 +48,17 @@ class DepositAction extends NewDepositAction {
   constructor(
     protected _id: string,
     userId: string,
+    exchangeId: string,
     name: string,
     uom: string,
-    uomQuant: number,
-    depositQuant: number,
+    uomQuantity: number,
+    depositQuantity: number,
     enabled: boolean,
     protected _sortedLocation: number,
     protected _dateAdded: number,
     protected _dateUpdated: number,
   ) {
-    super(userId, name, uom, uomQuant, depositQuant, enabled);
+    super(userId, exchangeId, name, uom, uomQuantity, depositQuantity, enabled);
   }
 
   get id(): string { return this._id; }
@@ -67,10 +70,11 @@ class DepositAction extends NewDepositAction {
     return {
       id: this.id,
       userId: this.userId,
+      exchangeId: this.exchangeId,
       name: this.name,
       uom: this.uom,
-      uomQuant: this.uomQuant,
-      depositQuant: this.depositQuant,
+      uomQuantity: this.uomQuantity,
+      depositQuantity: this.depositQuantity,
       enabled: this.enabled,
       sortedLocation: this.sortedLocation,
       dateAdded: this.dateAdded,
@@ -97,10 +101,11 @@ class DepositAction extends NewDepositAction {
     return new DepositAction(
       id,
       dep.userId,
+      dep.exchangeId,
       dep.name,
       dep.uom,
-      dep.uomQuant,
-      dep.depositQuant,
+      dep.uomQuantity,
+      dep.depositQuantity,
       dep.enabled,
       sortedLocation,
       _dateAdded,
@@ -112,10 +117,11 @@ class DepositAction extends NewDepositAction {
     if (!isRecord(rawJson)
       || !isString(rawJson.id)
       || !isString(rawJson.userId)
+      || !isString(rawJson.exchangeId)
       || !isString(rawJson.name)
       || !isString(rawJson.uom)
-      || !isNumber(rawJson.uomQuant)
-      || !isNumber(rawJson.depositQuant)
+      || !isNumber(rawJson.uomQuantity)
+      || !isNumber(rawJson.depositQuantity)
       || !isBoolean(rawJson.enabled)
       || !isNumber(rawJson.sortedLocation)
       || !isNumber(rawJson.dateAdded)
@@ -127,10 +133,11 @@ class DepositAction extends NewDepositAction {
     return new DepositAction(
       rawJson.id,
       rawJson.userId,
+      rawJson.exchangeId,
       rawJson.name,
       rawJson.uom,
-      rawJson.uomQuant,
-      rawJson.depositQuant,
+      rawJson.uomQuantity,
+      rawJson.depositQuantity,
       rawJson.enabled,
       rawJson.sortedLocation,
       rawJson.dateAdded,
@@ -147,34 +154,40 @@ class DepositAction extends NewDepositAction {
  */
 class NewDeposit {
   constructor(
+    protected _userId: string,
+    protected _exchangeId: string,
     protected _depositActionId: string,
     protected _depositActionName: string,
-    protected _uomQuant: number,
-    protected _depositQuant: number,
-    protected _quant: number,
+    protected _uomQuantity: number,
+    protected _depositQuantity: number,
+    protected _quantity: number,
   ) {}
 
+  get userId(): string { return this._userId; }
+  get exchangeId(): string { return this._exchangeId; }
   get depositActionId(): string { return this._depositActionId; }
   get depositActionName(): string { return this._depositActionName; }
-  get uomQuant(): number { return this._uomQuant; }
-  get depositQuant(): number { return this._depositQuant; }
-  get quant(): number { return this._quant; }
+  get uomQuantity(): number { return this._uomQuantity; }
+  get depositQuantity(): number { return this._depositQuantity; }
+  get quantity(): number { return this._quantity; }
 
   get exchangeRate(): number {
-    return this.depositQuant / this.uomQuant;
+    return this.depositQuantity / this.uomQuantity;
   }
 
   get deposit(): number {
-    return this.quant * this.exchangeRate;
+    return this.quantity * this.exchangeRate;
   }
 
-  static fromDepositAction(deposit: DepositAction, quant: number) {
+  static fromDepositAction(deposit: DepositAction, userId: string, quantity: number) {
     return new NewDeposit(
+      userId,
+      deposit.exchangeId,
       deposit.id,
       deposit.name,
-      deposit.uomQuant,
-      deposit.depositQuant,
-      quant,
+      deposit.uomQuantity,
+      deposit.depositQuantity,
+      quantity,
     );
   }
 }
@@ -182,27 +195,73 @@ class NewDeposit {
 class Deposit extends NewDeposit {
   constructor(
     protected _id: string,
+    userId: string,
+    exchangeId: string,
     depositActionId: string,
     depositActionName: string,
-    uomQuant: number,
-    depositQuant: number,
-    quant: number,
+    uomQuantity: number,
+    depositQuantity: number,
+    quantity: number,
     protected _dateAdded: number
   ) {
-    super(depositActionId, depositActionName, uomQuant, depositQuant, quant);
+    super(userId, exchangeId, depositActionId, depositActionName, uomQuantity, depositQuantity, quantity);
   }
 
   get id(): string { return this._id; }
   get dateAdded(): number { return this._dateAdded; }
 
-  static makeFromNewDeposit(dep: NewDeposit, id: string): Deposit {
+  toJSON() {
+    return {
+      id: this.id,
+      userId: this.userId,
+      exchangeId: this.exchangeId,
+      depositActionId: this.depositActionId,
+      depositActionName: this.depositActionName,
+      uomQuantity: this.uomQuantity,
+      depositQuantity: this.depositQuantity,
+      quantity: this.quantity,
+      dateAdded: this.dateAdded,
+    };
+  }
+
+  static fromJSON(rawJson: unknown): Deposit {
+    if (!isRecord(rawJson)
+      || !isString(rawJson.id)
+      || !isString(rawJson.userId)
+      || !isString(rawJson.exchangeId)
+      || !isString(rawJson.depositActionId)
+      || !isString(rawJson.depositActionName)
+      || !isNumber(rawJson.uomQuantity)
+      || !isNumber(rawJson.depositQuantity)
+      || !isNumber(rawJson.quantity)
+      || !isNumber(rawJson.dateAdded)
+    ) {
+      throw new InvalidJSONException('Invalid Data');
+    }
+
+    return new Deposit(
+      rawJson.id,
+      rawJson.userId,
+      rawJson.exchangeId,
+      rawJson.depositActionId,
+      rawJson.depositActionName,
+      rawJson.uomQuantity,
+      rawJson.depositQuantity,
+      rawJson.quantity,
+      rawJson.dateAdded,
+    );
+  }
+
+  static fromNewDeposit(dep: NewDeposit, id: string): Deposit {
     return new Deposit(
       id,
+      dep.userId,
+      dep.exchangeId,
       dep.depositActionId,
       dep.depositActionName,
-      dep.uomQuant,
-      dep.depositQuant,
-      dep.quant,
+      dep.uomQuantity,
+      dep.depositQuantity,
+      dep.quantity,
       new Date().getTime(),
     );
   }

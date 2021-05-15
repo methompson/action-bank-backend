@@ -6,16 +6,12 @@ import BasicBankController from './basic-bank-controller';
 import { UserExistsException } from '@root/exceptions/user-exceptions';
 
 class BasicDataController extends DataController {
-  private _constructionOptions: Record<string, unknown>;
-
   constructor(
     programContext: ProgramContext,
     userController: UserController,
     bankController: BankController,
-    options?: Record<string, unknown>
   ) {
-    super(programContext, userController, bankController, options);
-    this._constructionOptions = options ?? {};
+    super(programContext, userController, bankController);
   }
 
   static async init(programContext: ProgramContext, options?: Record<string, unknown>): Promise<DataController> {
@@ -44,7 +40,6 @@ class BasicDataController extends DataController {
       programContext,
       userController,
       bankController,
-      options,
     );
   }
 }

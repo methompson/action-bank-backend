@@ -117,9 +117,9 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
       user.passwordHash,
       user.userMeta,
       user.enabled,
+      user.dateAdded,
+      user.dateUpdated,
       '',
-      now,
-      now,
       now,
     );
 
@@ -157,16 +157,18 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
   }
 
   async makePasswordResetToken(userId: string, token: string): Promise<void> {
-    let user: User;
+    // let user: User;
 
-    try {
-      user = await this.getUserById(userId);
-    } catch (e) {
-      throw new UserDoesNotExistException();
-    }
+    // try {
+    //   user = await this.getUserById(userId);
+    // } catch (e) {
+    //   throw new UserDoesNotExistException();
+    // }
 
-    user.passwordResetToken = token;
-    user.passwordResetDate = Date.now();
+    // user.passwordResetToken = token;
+    // user.passwordResetDate = Date.now();
+
+    throw new Error('Unimplemented');
 
     // TODO Save this data
   }
@@ -180,7 +182,23 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
       throw new UserDoesNotExistException();
     }
 
-    user.passwordHash = newPassword;
+    const newUser = new User(
+      user.id,
+      user.username,
+      user.email,
+      user.firstName,
+      user.lastName,
+      user.userType,
+      newPassword,
+      user.userMeta,
+      user.enabled,
+      user.dateAdded,
+      user.dateUpdated,
+      user.passwordResetToken,
+      user.passwordResetDate,
+    );
+
+    this._users[userId] = newUser;
 
     // TODO Save this data
 

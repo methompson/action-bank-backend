@@ -37,19 +37,18 @@ interface BankController {
   // Deposits
   getDepositById: (depositId: string) => Promise<Deposit>;
   getDepositsByUserId: (userId: string) => Promise<Deposit[]>;
-  getDepositsByDepositActionId: (actionId: string) => Promise<Deposit[]>;
+  getDepositsByDepositActionId: (depositActionId: string) => Promise<Deposit[]>;
   addDeposit: (deposit: NewDeposit) => Promise<Deposit>;
   editDeposit: (deposit: Deposit) => Promise<Deposit>;
   deleteDeposit: (depositId: string) => Promise<string>;
 
   // Withdrawals
   getWithdrawalById: (withdrawalId: string) => Promise<Withdrawal>;
-  getWithdrawalsByUserIdv: (userId: string) => Promise<Withdrawal[]>;
-  getWithdrawalsByWithdrawalActionId: (actionId: string) => Promise<Withdrawal[]>;
+  getWithdrawalsByUserId: (userId: string) => Promise<Withdrawal[]>;
+  getWithdrawalsByWithdrawalActionId: (withdrawalActionId: string) => Promise<Withdrawal[]>;
   addWithdrawal: (withdrawal: NewWithdrawal) => Promise<Withdrawal>;
   editWithdrawal: (withdrawal: Withdrawal) => Promise<Withdrawal>;
   deleteWithdrawal: (withdrawalId: string) => Promise<string>;
-
 }
 
 export default BankController;

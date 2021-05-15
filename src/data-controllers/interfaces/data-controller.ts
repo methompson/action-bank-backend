@@ -16,7 +16,6 @@ abstract class DataController {
     programContext: ProgramContext,
     userController: UserController,
     bankController: BankController,
-    options?: Record<string, unknown>
   ) {
     this.programContext = programContext;
     this._bankController = bankController;

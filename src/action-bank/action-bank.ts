@@ -83,8 +83,8 @@ class ActionBank {
     this.exchangeResolver = new ExchangeResolver(dataController);
     this.depositActionResolver = new DepositActionResolver(dataController);
     this.withdrawalActionResolver = new WithdrawalActionResolver(dataController);
-    this.depositResolver = new DepositResolver();
-    this.withdrawalResolver = new WithdrawalResolver();
+    this.depositResolver = new DepositResolver(dataController);
+    this.withdrawalResolver = new WithdrawalResolver(dataController);
 
     try {
       const userController = this.dataController.userController;
@@ -96,16 +96,16 @@ class ActionBank {
       const isNoUsers = await userController.isNoUsers();
 
       if (isNoUsers) {
-        const u: NewUser = {
+        const u = NewUser.fromJson({
           username: 'admin',
           email: 'admin@admin.admin',
           firstName: 'admin',
           lastName: 'admin',
-          userType: this.context.userTypeMap.getUserType('superAdmin'),
-          passwordHash: this.userResolver.hashPassword('password'),
+          userType: this.context.userTypeMap.getUserType('superAdmin').toString(),
+          password: this.userResolver.hashPassword('password'),
           userMeta: {},
           enabled: true,
-        };
+        }, this.context.userTypeMap);
 
         await userController.addUser(u);
       }
@@ -263,11 +263,13 @@ class ActionBank {
         getWithdrawalActionById(withdrawalActionId: ID!): WithdrawalAction
         getWithdrawalActionsByUserId(userId: ID!): [WithdrawalAction]
 
-        getDepositById(depositId: ID!): [Deposit]
+        getDepositById(depositId: ID!): Deposit
         getDepositsByUserId(userId: ID!): [Deposit]
+        getDepositsByDepositActionId(depositActionId: ID!): [Deposit]
 
-        getWithdrawalById(withdrawalId: ID!): [Withdrawal]
+        getWithdrawalById(withdrawalId: ID!): Withdrawal
         getWithdrawalsByUserId(userId: ID!): [Withdrawal]
+        getWithdrawalsByWithdrawalActionId(withdrawalActionId: ID!): [Withdrawal]
       }
 
       type Mutation {
@@ -277,34 +279,38 @@ class ActionBank {
 
         addDepositAction(
           name: String!,
+          exchangeId: String!,
           uom: String!,
-          uomQuant: Int!,
-          depositQuant: Int!,
+          uomQuantity: Int!,
+          depositQuantity: Int!,
           enabled: Boolean,
         ): DepositAction
         editDepositAction(
           depositActionId: ID!,
+          exchangeId: String,
           name: String,
           uom: String,
-          uomQuant: Int,
-          depositQuant: Int,
+          uomQuantity: Int,
+          depositQuantity: Int,
           enabled: Boolean,
         ): DepositAction
         deleteDepositAction(depositActionId: ID!): ID
 
         addWithdrawalAction(
           name: String!,
+          exchangeId: String!,
           uom: String!,
-          uomQuant: Int!,
-          withdrawalQuant: Int!,
+          uomQuantity: Int!,
+          withdrawalQuantity: Int!,
           enabled: Boolean,
         ): WithdrawalAction
         editWithdrawalAction(
           withdrawalActionId: ID!,
+          exchangeId: String,
           name: String,
           uom: String,
-          uomQuant: Int,
-          withdrawalQuant: Int,
+          uomQuantity: Int,
+          withdrawalQuantity: Int,
           enabled: Boolean,
         ): WithdrawalAction
         deleteWithdrawalAction(withdrawalActionId: ID!): ID
@@ -333,44 +339,48 @@ class ActionBank {
         id: ID,
         depositActionId: ID,
         depositActionName: String,
-        uomQuant: Int,
-        depositQuant: Int,
-        quant: Float,
-        dateAdded: Int,
+        uomQuantity: Int,
+        depositQuantity: Int,
+        quantity: Float,
+        dateAdded: Float,
       }
 
       type DepositAction {
         id: ID,
+        userId: ID,
+        exchangeId: ID,
         name: String,
         uom: String,
-        uomQuant: Int,
-        depositQuant: Int,
+        uomQuantity: Int,
+        depositQuantity: Int,
         enabled: Boolean,
         sortedLocation: Int,
-        dateAdded: Int,
-        dateUpdated: Int,
+        dateAdded: Float,
+        dateUpdated: Float,
       }
 
       type Withdrawal {
         id: ID,
         withdrawalActionId: ID,
         withdrawalActionName: String,
-        uomQuant: Int,
-        withdrawalQuant: Int,
-        quant: Float,
-        dateAdded: Int,
+        uomQuantity: Int,
+        withdrawalQuantity: Int,
+        quantity: Float,
+        dateAdded: Float,
       }
 
       type WithdrawalAction {
         id: ID,
+        userId: ID,
+        exchangeId: ID,
         name: String,
         uom: String,
-        uomQuant: Int,
-        withdrawalQuant: Int,
+        uomQuantity: Int,
+        withdrawalQuantity: Int,
         enabled: Boolean,
         sortedLocation: Int,
-        dateAdded: Int,
-        dateUpdated: Int,
+        dateAdded: Float,
+        dateUpdated: Float,
       }
     `;
 
@@ -393,9 +403,11 @@ class ActionBank {
 
         getDepositById: (parent, args, ctx, info) => depositResolver.getDepositById(parent, args, ctx, info),
         getDepositsByUserId: (parent, args, ctx, info) => depositResolver.getDepositsByUserId(parent, args, ctx, info),
+        getDepositsByDepositActionId: (parent, args, ctx, info) => depositResolver.getDepositsByDepositActionId(parent, args, ctx, info),
 
         getWithdrawalById: (parent, args, ctx, info) => withdrawalResolver.getWithdrawalById(parent, args, ctx, info),
         getWithdrawalsByUserId: (parent, args, ctx, info) => withdrawalResolver.getWithdrawalsByUserId(parent, args, ctx, info),
+        getWithdrawalsByWithdrawalActionId: (parent, args, ctx, info) => withdrawalResolver.getWithdrawalsByWithdrawalActionId(parent, args, ctx, info),
       },
       Mutation: {
         addExchange: (parent, args, ctx, info) => exchangeResolver.addExchange(parent, args, ctx, info),
@@ -422,12 +434,22 @@ class ActionBank {
 
     const permissions = {
       Query: {
-        getExchangesByUserId: this.guardByLoggedInUser(),
         getExchangeById: this.guardByLoggedInUser(),
+        getExchangesByUserId: this.guardByLoggedInUser(),
+
+        getDepositActionById: this.guardByLoggedInUser(),
         getDepositActionsByUserId: this.guardByLoggedInUser(),
+
+        getWithdrawalActionById: this.guardByLoggedInUser(),
         getWithdrawalActionsByUserId: this.guardByLoggedInUser(),
+
+        getDepositById: this.guardByLoggedInUser(),
         getDepositsByUserId: this.guardByLoggedInUser(),
+        getDepositsByDepositActionId: this.guardByLoggedInUser(),
+
+        getWithdrawalById: this.guardByLoggedInUser(),
         getWithdrawalsByUserId: this.guardByLoggedInUser(),
+        getWithdrawalsByWithdrawalActionId: this.guardByLoggedInUser(),
       },
       Mutation: {
         addExchange: this.guardByLoggedInUser(),
@@ -651,16 +673,6 @@ class ActionBank {
 
     await next();
   }
-
-  /*************************************************************************************
-   * Deposit Routes
-   ********************************************************************************** */
-
-  /*************************************************************************************
-   * Withdrawal Routes
-   ********************************************************************************** */
-
-
 }
 
 export default ActionBank;

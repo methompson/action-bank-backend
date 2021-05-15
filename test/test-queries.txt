@@ -1,0 +1,110 @@
+mutation mutateExchanges {
+    addExchange(
+        name: "Test Exchange",
+    ) {
+        id
+    }
+}
+
+mutation mutateExchanges {
+  deleteExchange(exchangeId: "")
+}
+
+mutation mutateExchanges {
+    addDepositAction(
+        exchangeId: "",
+        name: "Test Action",
+        uom: "Minutes",
+        uomQuantity: 5,
+        depositQuantity: 1,
+        enabled: true,
+    ) {
+        id
+    }
+}
+
+mutation mutateExchanges {
+    addWithdrawalAction(
+        exchangeId: "",
+        name: "Test Action",
+        uom: "Minutes",
+        uomQuantity: 5,
+        withdrawalQuantity: 1,
+        enabled: true,
+    ) {
+        id
+    }
+}
+
+mutation mutateExchanges {
+    addDeposit(
+        depositActionId: "",
+        quantity: 1.5
+    ) {
+        id
+    }
+}
+
+mutation mutateExchanges {
+    addWithdrawal(
+        withdrawalActionId: "",
+        quantity: 1.5
+    ) {
+        id
+    }
+}
+
+mutation mutateExchanges {
+  deleteDepositAction(depositActionId: "")
+}
+
+mutation mutateExchanges {
+  deleteWithdrawalAction(withdrawalActionId: "")
+}
+
+query getExchange {
+    getExchangeById(exchangeId: "") {
+        id,
+        userId,
+        name,
+        depositActions {
+            id,
+            name,
+            uom,
+            uomQuantity,
+            depositQuantity,
+            enabled,
+            sortedLocation,
+            dateUpdated,
+        },
+        withdrawalActions {
+            id,
+            name,
+            uom,
+            uomQuantity,
+            withdrawalQuantity,
+            enabled,
+            sortedLocation,
+            dateUpdated,
+        },
+        deposits {
+            id,
+            depositActionId,
+            depositActionName,
+            uomQuantity,
+            depositQuantity,
+            quantity,
+            dateAdded,
+        },
+        withdrawals {
+            id,
+            withdrawalActionId,
+            withdrawalActionName,
+            uomQuantity,
+            withdrawalQuantity,
+            quantity,
+            dateAdded,
+        },
+        totalCurrency,
+    }
+}

@@ -10,7 +10,7 @@ import {
   isBoolean,
 } from '@dataTypes/type-guards';
 import CommonResolver from './common-resolver';
-import { UserToken, DepositAction, NewDepositAction } from '@dataTypes';
+import { UserToken, DepositAction, NewDepositAction, Exchange } from '@dataTypes';
 import { DataDoesNotExistException } from '@root/exceptions/data-controller-exceptions';
 
 class DepositActionResolver extends CommonResolver {
@@ -20,7 +20,7 @@ class DepositActionResolver extends CommonResolver {
 
   async getDepositActionById(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.depositActionId !== 'string'
+      || !isString(args.depositActionId)
     ){
       throw new QueryDataException('Invalid Data Provided');
     }
@@ -32,10 +32,14 @@ class DepositActionResolver extends CommonResolver {
       throw new QueryDataException('Invalid User Token');
     }
 
-    let depositAction: DepositAction;
-
     try {
-      depositAction = await this.dataController.bankController.getDepositActionById(args.depositActionId);
+      const depositAction = await this.dataController.bankController.getDepositActionById(args.depositActionId);
+
+      if (depositAction.userId !== userToken.userId) {
+        throw new QueryDataException('Deposit Action Does Not Exist');
+      }
+
+      return depositAction;
     } catch (e) {
       if (e instanceof DataDoesNotExistException) {
         throw new QueryDataException('Deposit Action Does Not Exist');
@@ -43,17 +47,11 @@ class DepositActionResolver extends CommonResolver {
 
       throw new QueryDataException('Error Retrieving Deposit Action');
     }
-
-    if (depositAction.userId !== userToken.userId) {
-      throw new QueryDataException('Deposit Action Does Not Exist');
-    }
-
-    return depositAction;
   }
 
   async getDepositActionsByUserId(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.userId !== 'string'
+      || !isString(args.userId)
     ){
       throw new QueryDataException('Invalid Data Provided');
     }
@@ -69,24 +67,23 @@ class DepositActionResolver extends CommonResolver {
       throw new QueryDataException('Invalid user ID');
     }
 
-    let depositActions: DepositAction[];
 
     try {
-      depositActions = await this.dataController.bankController.getDepositActionsByUserId(args.userId);
+      const depositActions = await this.dataController.bankController.getDepositActionsByUserId(args.userId);
+      return depositActions;
     } catch (e) {
       throw new QueryDataException('Error Retrieving Deposit Actions');
     }
-
-    return depositActions;
   }
 
   async addDepositAction(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.name !== 'string'
-      || typeof args.uom !== 'string'
-      || typeof args.uomQuant !== 'number'
-      || typeof args.depositQuant !== 'number'
-      || typeof args.enabled !== 'boolean'
+      || !isString(args.name)
+      || !isString(args.exchangeId)
+      || !isString(args.uom)
+      || !isNumber(args.uomQuantity)
+      || !isNumber(args.depositQuantity)
+      || !isBoolean(args.enabled)
     ) {
       throw new MutateDataException('Invalid Data Provided');
     }
@@ -98,29 +95,39 @@ class DepositActionResolver extends CommonResolver {
       throw new MutateDataException('Invalid User Token');
     }
 
+    let exchange: Exchange;
+    try {
+      // Get exchange, compare user ID
+      exchange = await this.dataController.bankController.getExchangeById(args.exchangeId);
+    } catch(e) {
+      throw new MutateDataException('Error Retrieving Data');
+    }
+
+    if (exchange.userId !== userToken.userId) {
+      throw new MutateDataException('Unauthorized Access');
+    }
+
     const newAction = new NewDepositAction(
       userToken.userId,
+      args.exchangeId,
       args.name,
       args.uom,
-      args.uomQuant,
-      args.depositQuant,
+      args.uomQuantity,
+      args.depositQuantity,
       args.enabled,
     );
 
-    let action: DepositAction;
-
     try {
-      action = await this.dataController.bankController.addDepositAction(newAction);
+      const action = await this.dataController.bankController.addDepositAction(newAction);
+      return action;
     } catch(e) {
       throw new MutateDataException('Unable to Add New Deposit Action');
     }
-
-    return action;
   }
 
   async editDepositAction(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.depositActionId !== 'string'
+      || !isString(args.depositActionId)
     ){
       throw new MutateDataException('Invalid Data Provided');
     }
@@ -143,15 +150,31 @@ class DepositActionResolver extends CommonResolver {
       throw new MutateDataException('Unauthorized');
     }
 
+    const exchangeId = isString(args.exchangeId) ? args.exchangeId : oldAction.exchangeId;
+    // We've changed the exchange. Must get the exchange by ID and make sure that the userId
+    // can access this exchange.
+    try {
+      if (exchangeId !== oldAction.exchangeId) {
+        const exchange = await this.dataController.bankController.getExchangeById(exchangeId);
+
+        if (exchange.userId !== userToken.userId) {
+          throw new Error('Unauthorized');
+        }
+      }
+    } catch(e) {
+      throw new MutateDataException('Unauthorized');
+    }
+
     const name = isString(args.name) ? args.name : oldAction.name;
     const uom = isString(args.uom) ? args.uom : oldAction.uom;
-    const uomQuant = isNumber(args.uomQuant) ? args.uomQuant : oldAction.uomQuant;
-    const depositQuant = isNumber(args.depositQuant) ? args.depositQuant : oldAction.depositQuant;
+    const uomQuant = isNumber(args.uomQuant) ? args.uomQuant : oldAction.uomQuantity;
+    const depositQuant = isNumber(args.depositQuant) ? args.depositQuant : oldAction.depositQuantity;
     const enabled = isBoolean(args.enabled) ? args.enabled : oldAction.enabled;
 
     const newAction = new DepositAction(
       oldAction.id,
       oldAction.userId,
+      exchangeId,
       name,
       uom,
       uomQuant,
@@ -162,19 +185,17 @@ class DepositActionResolver extends CommonResolver {
       new Date().getTime(),
     );
 
-    let returnVal: DepositAction;
     try {
-      returnVal = await this.dataController.bankController.editDepositAction(newAction);
+      const result = await this.dataController.bankController.editDepositAction(newAction);
+      return result;
     } catch (e) {
       throw new MutateDataException('Unable to Update Deposit Action');
     }
-
-    return returnVal;
   }
 
   async deleteDepositAction(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args.depositActionId !== 'string'
+      || !isString(args.depositActionId)
     ){
       throw new QueryDataException('Invalid Data Provided');
     }
@@ -200,9 +221,9 @@ class DepositActionResolver extends CommonResolver {
       throw new QueryDataException('Error Deleting Deposit Action');
     }
 
-    let id: string;
     try {
-      id = await this.dataController.bankController.deleteDepositAction(args.depositActionId);
+      const id = await this.dataController.bankController.deleteDepositAction(args.depositActionId);
+      return id;
     } catch(e) {
       if (e instanceof DataDoesNotExistException) {
         throw new QueryDataException('Deposit Action Does Not Exist');
@@ -210,8 +231,6 @@ class DepositActionResolver extends CommonResolver {
 
       throw new QueryDataException('Error Deleting Deposit Action');
     }
-
-    return id;
   }
 }
 

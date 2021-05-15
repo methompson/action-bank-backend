@@ -9,22 +9,24 @@ import {
 class NewWithdrawalAction {
   constructor(
     protected _userId: string,
+    protected _exchangeId: string,
     protected _name: string,
     protected _uom: string,
-    protected _uomQuant: number,
-    protected _withdrawalQuant: number,
+    protected _uomQuantity: number,
+    protected _withdrawalQuantity: number,
     protected _enabled: boolean,
   ) {}
 
   get userId(): string { return this._userId; }
+  get exchangeId(): string { return this._exchangeId; }
   get name(): string { return this._name; }
   get uom(): string { return this._uom; }
-  get uomQuant(): number { return this._uomQuant; }
-  get withdrawalQuant(): number { return this._withdrawalQuant; }
+  get uomQuantity(): number { return this._uomQuantity; }
+  get withdrawalQuantity(): number { return this._withdrawalQuantity; }
   get enabled(): boolean { return this._enabled; }
 
   get exchangeRate(): number {
-    return this.withdrawalQuant / this.uomQuant;
+    return this.withdrawalQuantity / this.uomQuantity;
   }
 
   getCost(actionQuant: number): number {
@@ -36,16 +38,17 @@ class WithdrawalAction extends NewWithdrawalAction {
   constructor(
     protected _id: string,
     userId: string,
+    exchangeId: string,
     name: string,
     uom: string,
-    uomQuant: number,
-    withdrawalQuant: number,
+    uomQuantity: number,
+    withdrawalQuantity: number,
     enabled: boolean,
     protected _sortedLocation: number,
     protected _dateAdded: number,
     protected _dateUpdated: number,
   ) {
-    super(userId, name, uom, uomQuant, withdrawalQuant, enabled);
+    super(userId, exchangeId, name, uom, uomQuantity, withdrawalQuantity, enabled);
   }
 
   get id(): string { return this._id; }
@@ -57,10 +60,11 @@ class WithdrawalAction extends NewWithdrawalAction {
     return {
       id: this.id,
       userId: this.userId,
+      exchangeId: this.exchangeId,
       name: this.name,
       uom: this.uom,
-      uomQuant: this.uomQuant,
-      withdrawalQuant: this.withdrawalQuant,
+      uomQuantity: this.uomQuantity,
+      withdrawalQuantity: this.withdrawalQuantity,
       enabled: this.enabled,
       sortedLocation: this.sortedLocation,
       dateAdded: this.dateAdded,
@@ -84,10 +88,11 @@ class WithdrawalAction extends NewWithdrawalAction {
     return new WithdrawalAction(
       id,
       action.userId,
+      action.exchangeId,
       action.name,
       action.uom,
-      action.uomQuant,
-      action.withdrawalQuant,
+      action.uomQuantity,
+      action.withdrawalQuantity,
       action.enabled,
       _sortedLocation,
       _dateAdded,
@@ -99,10 +104,11 @@ class WithdrawalAction extends NewWithdrawalAction {
     if (!isRecord(rawJson)
       || !isString(rawJson.id)
       || !isString(rawJson.userId)
+      || !isString(rawJson.exchangeId)
       || !isString(rawJson.name)
       || !isString(rawJson.uom)
-      || !isNumber(rawJson.uomQuant)
-      || !isNumber(rawJson.withdrawalQuant)
+      || !isNumber(rawJson.uomQuantity)
+      || !isNumber(rawJson.withdrawalQuantity)
       || !isBoolean(rawJson.enabled)
       || !isNumber(rawJson.sortedLocation)
       || !isNumber(rawJson.dateAdded)
@@ -114,10 +120,11 @@ class WithdrawalAction extends NewWithdrawalAction {
     return new WithdrawalAction(
       rawJson.id,
       rawJson.userId,
+      rawJson.exchangeId,
       rawJson.name,
       rawJson.uom,
-      rawJson.uomQuant,
-      rawJson.withdrawalQuant,
+      rawJson.uomQuantity,
+      rawJson.withdrawalQuantity,
       rawJson.enabled,
       rawJson.sortedLocation,
       rawJson.dateAdded,
@@ -128,34 +135,40 @@ class WithdrawalAction extends NewWithdrawalAction {
 
 class NewWithdrawal {
   constructor(
+    protected _userId: string,
+    protected _exchangeId: string,
     protected _withdrawalActionId: string,
     protected _withdrawalActionName: string,
-    protected _uomQuant: number,
-    protected _withdrawalQuant: number,
-    protected _quant: number,
+    protected _uomQuantity: number,
+    protected _withdrawalQuantity: number,
+    protected _quantity: number,
   ) {}
 
+  get userId(): string { return this._userId; }
+  get exchangeId(): string { return this._exchangeId; }
   get withdrawalActionId(): string { return this._withdrawalActionId; }
   get withdrawalActionName(): string { return this._withdrawalActionName; }
-  get uomQuant(): number { return this._uomQuant; }
-  get withdrawalQuant(): number { return this._withdrawalQuant; }
-  get quant(): number { return this._quant; }
+  get uomQuantity(): number { return this._uomQuantity; }
+  get withdrawalQuantity(): number { return this._withdrawalQuantity; }
+  get quantity(): number { return this._quantity; }
 
   get exchangeRate(): number {
-    return this.withdrawalQuant / this.uomQuant;
+    return this.withdrawalQuantity / this.uomQuantity;
   }
 
   get cost(): number {
-    return this.quant * this.exchangeRate;
+    return this.quantity * this.exchangeRate;
   }
 
-  static fromWithdrawalAction(withdrawal: WithdrawalAction, quant: number): NewWithdrawal {
+  static fromWithdrawalAction(withdrawal: WithdrawalAction, userId: string, quantity: number): NewWithdrawal {
     return new NewWithdrawal(
+      userId,
+      withdrawal.exchangeId,
       withdrawal.id,
       withdrawal.name,
-      withdrawal.uomQuant,
-      withdrawal.withdrawalQuant,
-      quant,
+      withdrawal.uomQuantity,
+      withdrawal.withdrawalQuantity,
+      quantity,
     );
   }
 }
@@ -163,32 +176,81 @@ class NewWithdrawal {
 class Withdrawal extends NewWithdrawal {
   constructor(
     protected _id: string,
+    userId: string,
+    exchangeId: string,
     withdrawalActionId: string,
     withdrawalActionName: string,
-    uomQuant: number,
-    withdrawalQuant: number,
-    quant: number,
+    uomQuantity: number,
+    withdrawalQuantity: number,
+    quantity: number,
     protected _dateAdded: number
   ) {
     super(
+      userId,
+      exchangeId,
       withdrawalActionId,
       withdrawalActionName,
-      uomQuant,
-      withdrawalQuant,
-      quant,
+      uomQuantity,
+      withdrawalQuantity,
+      quantity,
     );
   }
 
   get id(): string { return this._id; }
+  get dateAdded(): number { return this._dateAdded; }
+
+  toJSON() {
+    return {
+      id: this.id,
+      userId: this.userId,
+      exchangeId: this.exchangeId,
+      withdrawalActionId: this.withdrawalActionId,
+      withdrawalActionName: this.withdrawalActionName,
+      uomQuantity: this.uomQuantity,
+      withdrawalQuantity: this.withdrawalQuantity,
+      quantity: this.quantity,
+      dateAdded: this.dateAdded,
+    };
+  }
+
+  static fromJSON(rawJson: unknown): Withdrawal {
+    if (!isRecord(rawJson)
+      || !isString(rawJson.id)
+      || !isString(rawJson.userId)
+      || !isString(rawJson.exchangeId)
+      || !isString(rawJson.withdrawalActionId)
+      || !isString(rawJson.withdrawalActionName)
+      || !isNumber(rawJson.uomQuantity)
+      || !isNumber(rawJson.withdrawalQuantity)
+      || !isNumber(rawJson.quantity)
+      || !isNumber(rawJson.dateAdded)
+    ) {
+      throw new InvalidJSONException('Invalid Data');
+    }
+
+    return new Withdrawal(
+      rawJson.id,
+      rawJson.userId,
+      rawJson.exchangeId,
+      rawJson.withdrawalActionId,
+      rawJson.withdrawalActionName,
+      rawJson.uomQuantity,
+      rawJson.withdrawalQuantity,
+      rawJson.quantity,
+      rawJson.dateAdded,
+    );
+  }
 
   static fromNewWithdrawal(withdrawal: NewWithdrawal, id: string): Withdrawal {
     return new Withdrawal(
       id,
+      withdrawal.userId,
+      withdrawal.exchangeId,
       withdrawal.withdrawalActionId,
       withdrawal.withdrawalActionName,
-      withdrawal.uomQuant,
-      withdrawal.withdrawalQuant,
-      withdrawal.quant,
+      withdrawal.uomQuantity,
+      withdrawal.withdrawalQuantity,
+      withdrawal.quantity,
       new Date().getTime(),
     );
   }
