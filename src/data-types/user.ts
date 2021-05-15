@@ -1,6 +1,7 @@
 // tslint:disable:max-classes-per-file
 
 import { UserTypeMap, UserType } from '@dataTypes/';
+import { isFunction } from 'node:util';
 
 function isObject(val: Record<string, unknown> | unknown | undefined | null): val is Record<string, unknown> {
   return typeof val === 'object' && !Array.isArray(val);
@@ -41,12 +42,14 @@ class NewUser {
       email: this.email,
       firstName: this.firstName,
       lastName: this.lastName,
-      userType: this.userType,
+      userType: this.userType.toString(),
       passwordHash: this.passwordHash,
       userMeta: this.userMeta,
       enabled: this.enabled,
       dateAdded: this.dateAdded,
       dateUpdated:this.dateUpdated,
+      passwordResetToken: this.passwordResetToken,
+      passwordResetDate: this.passwordResetDate,
     };
   }
 
@@ -197,8 +200,17 @@ class User extends NewUser {
     );
   }
 
-  static fromJson(rawJson: unknown, userTypeMap: UserTypeMap): User {
+  static fromJSON(rawJson: unknown, userTypeMap: UserTypeMap): User {
     if (!isObject(rawJson)) {
+      throw new Error('Invalid Data');
+    }
+
+    let id: string;
+    if (typeof rawJson.id === 'string') {
+      id = rawJson.id;
+    } else if (isObject(rawJson._id) && typeof rawJson._id.toString === 'function') {
+      id = rawJson._id.toString();
+    } else {
       throw new Error('Invalid Data');
     }
 
@@ -206,7 +218,6 @@ class User extends NewUser {
       || typeof rawJson.email !== 'string'
       || typeof rawJson.userType !== 'string'
       || typeof rawJson.passwordHash !== 'string'
-      || typeof rawJson.id !== 'string'
       || typeof rawJson.passwordResetToken !== 'string'
       || (typeof rawJson.passwordResetDate !== 'number' && !(rawJson.passwordResetDate instanceof Date))
       || !isObject(rawJson.userMeta)
@@ -237,7 +248,7 @@ class User extends NewUser {
       : '';
 
     const user = new User(
-      rawJson.id,
+      id,
       rawJson.username,
       rawJson.email,
       firstName,

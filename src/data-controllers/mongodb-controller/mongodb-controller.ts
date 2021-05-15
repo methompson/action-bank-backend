@@ -71,7 +71,8 @@ class MongoDBDataController extends DataController {
       });
 
       // Enforce uniqueness
-      await userCollection.createIndex({username: 1, email: 1}, {unique: true});
+      await userCollection.createIndex({username: 1}, {unique: true});
+      await userCollection.createIndex({email: 1}, {unique: true});
     }
 
     const userController = new MongoDBUserController(programContext, client);

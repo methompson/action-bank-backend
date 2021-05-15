@@ -296,7 +296,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
 
     Object.values(rawUserData).forEach((val) => {
       try {
-        const user = User.fromJson(val, this.programContext.userTypeMap);
+        const user = User.fromJSON(val, this.programContext.userTypeMap);
         userData[user.id] = user;
       } catch(e) {
         console.log();
