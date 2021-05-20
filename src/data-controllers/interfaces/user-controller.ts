@@ -8,7 +8,7 @@ interface UserController {
   addUser: (user: NewUser) => Promise<User>;
   editUser: (user: User) => Promise<User>;
   makePasswordResetToken: (userId: string, token: string) => Promise<void>;
-  updatePassword: (userId: string, newPassword: string) => Promise<void>;
+  updatePassword: (userId: string, newPasswordHash: string) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   /**
    * Returns a boolean indicating if there are no users. True means that

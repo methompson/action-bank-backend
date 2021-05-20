@@ -38,6 +38,7 @@ class NewExchange {
   get totalDeposits(): number {
     let deposits = 0;
     this.deposits.forEach((d) => {
+      const dep = d.deposit;
       deposits += d.deposit;
     });
 
@@ -109,6 +110,13 @@ class NewExchange {
     this._withdrawals = withdrawals;
 
     this.calculateTotalCurrency();
+  }
+
+  toJSON() {
+    return {
+      userId: this.userId,
+      name: this.name,
+    };
   }
 }
 

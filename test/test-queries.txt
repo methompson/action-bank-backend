@@ -1,4 +1,7 @@
-mutation mutateExchanges {
+**************************************************************************************
+Exchanges
+**************************************************************************************
+mutation exchange {
     addExchange(
         name: "Test Exchange",
     ) {
@@ -6,60 +9,14 @@ mutation mutateExchanges {
     }
 }
 
-mutation mutateExchanges {
+mutation exchange {
   deleteExchange(exchangeId: "")
 }
 
-mutation mutateExchanges {
-    addDepositAction(
-        exchangeId: "",
-        name: "Test Action",
-        uom: "Minutes",
-        uomQuantity: 5,
-        depositQuantity: 1,
-        enabled: true,
-    ) {
-        id
+query exchange {
+    getExchangesByUserId(userId: "") {
+        id,
     }
-}
-
-mutation mutateExchanges {
-    addWithdrawalAction(
-        exchangeId: "",
-        name: "Test Action",
-        uom: "Minutes",
-        uomQuantity: 5,
-        withdrawalQuantity: 1,
-        enabled: true,
-    ) {
-        id
-    }
-}
-
-mutation mutateExchanges {
-    addDeposit(
-        depositActionId: "",
-        quantity: 1.5
-    ) {
-        id
-    }
-}
-
-mutation mutateExchanges {
-    addWithdrawal(
-        withdrawalActionId: "",
-        quantity: 1.5
-    ) {
-        id
-    }
-}
-
-mutation mutateExchanges {
-  deleteDepositAction(depositActionId: "")
-}
-
-mutation mutateExchanges {
-  deleteWithdrawalAction(withdrawalActionId: "")
 }
 
 query getExchange {
@@ -107,4 +64,178 @@ query getExchange {
         },
         totalCurrency,
     }
+}
+
+**************************************************************************************
+Deposit Actions
+**************************************************************************************
+
+mutation depositAction {
+    addDepositAction(
+        exchangeId: "",
+        name: "Test Action",
+        uom: "Minutes",
+        uomQuantity: 5,
+        depositQuantity: 1,
+        enabled: true,
+    ) {
+        id
+    }
+}
+
+mutation depositAction {
+    editDepositAction(
+        depositActionId: "",
+        name: "Test Action Update",
+        uom: "Minutes",
+        uomQuantity: 10,
+        depositQuantity: 1,
+    ) {
+        id
+    }
+}
+
+mutation depositAction {
+    deleteDepositAction(
+        depositActionId: "",
+    )
+}
+
+**************************************************************************************
+Withdrawal Actions
+**************************************************************************************
+
+mutation widthdrawalAction {
+    addWithdrawalAction(
+        exchangeId: "",
+        name: "Test Action",
+        uom: "Minutes",
+        uomQuantity: 5,
+        withdrawalQuantity: 1,
+        enabled: true,
+    ) {
+        id
+    }
+}
+
+mutation widthdrawalAction {
+    editWithdrawalAction(
+        withdrawalActionId: "",
+        name: "Test Action Update",
+        uom: "Minutes",
+        uomQuantity: 10,
+        withdrawalQuantity: 1,
+    ) {
+        id
+    }
+}
+
+mutation widthdrawalAction {
+    deleteWithdrawalAction(
+        withdrawalActionId: "",
+    )
+}
+
+**************************************************************************************
+Deposits
+**************************************************************************************
+
+query deposit {
+    getDepositById(
+        depositId: "",
+    ) {
+        id,
+    }
+}
+
+query deposit {
+    getDepositsByUserId(
+        userId: "",
+    ) {
+        id,
+    }
+}
+
+query deposit {
+    getDepositsByDepositActionId(
+        depositActionId: "",
+    ) {
+        id,
+    }
+}
+
+mutation deposit {
+    addDeposit(
+        depositActionId: "",
+        quantity: 1.5,
+    ) {
+        id
+    }
+}
+
+mutation deposit {
+    editDeposit(
+        depositId: "",
+        quantity: 2,
+    ) {
+        id
+    }
+}
+
+mutation deposit {
+    deleteDeposit(
+        depositId: "",
+    )
+}
+
+**************************************************************************************
+Withdrawals
+**************************************************************************************
+
+query withdrawal {
+    getWithdrawalById(
+        withdrawalId: "",
+    ) {
+        id,
+    }
+}
+
+query withdrawal {
+    getWithdrawalsByUserId(
+        userId: "",
+    ) {
+        id,
+    }
+}
+
+query withdrawal {
+    getWithdrawalsByWithdrawalActionId(
+        withdrawalActionId: "",
+    ) {
+        id,
+    }
+}
+
+mutation withdrawal {
+    addWithdrawal(
+        withdrawalActionId: "",
+        quantity: 1.5,
+    ) {
+        id
+    }
+}
+
+mutation withdrawal {
+    editWithdrawal(
+        withdrawalId: "",
+        quantity: 2,
+    ) {
+        id
+    }
+}
+
+mutation withdrawal {
+    deleteWithdrawal(
+        withdrawalId: "",
+    )
 }

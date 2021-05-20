@@ -194,8 +194,8 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
     return exchanges;
   }
 
-  async editExchange(exchangeId: string, name: string): Promise<Exchange> {
-    const oldEx = this._exchanges[exchangeId];
+  async editExchange(newExchange: Exchange): Promise<Exchange> {
+    const oldEx = this._exchanges[newExchange.id];
 
     if (oldEx === undefined) {
       throw new Error('Exchange does not exist');
@@ -204,14 +204,14 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
     const ex = new Exchange(
       oldEx.id,
       oldEx.userId,
-      name,
+      newExchange.name,
       oldEx.depositActions,
       oldEx.withdrawalActions,
       oldEx.deposits,
       oldEx.withdrawals,
     );
 
-    this._exchanges[exchangeId] = ex;
+    this._exchanges[newExchange.id] = ex;
 
     this.writeBankData();
 

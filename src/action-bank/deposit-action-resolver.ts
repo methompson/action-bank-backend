@@ -10,7 +10,12 @@ import {
   isBoolean,
 } from '@dataTypes/type-guards';
 import CommonResolver from './common-resolver';
-import { UserToken, DepositAction, NewDepositAction, Exchange } from '@dataTypes';
+import {
+  UserToken,
+  DepositAction,
+  NewDepositAction,
+  Exchange,
+} from '@dataTypes';
 import { DataDoesNotExistException } from '@root/exceptions/data-controller-exceptions';
 
 class DepositActionResolver extends CommonResolver {
@@ -100,7 +105,7 @@ class DepositActionResolver extends CommonResolver {
       // Get exchange, compare user ID
       exchange = await this.dataController.bankController.getExchangeById(args.exchangeId);
     } catch(e) {
-      throw new MutateDataException('Error Retrieving Data');
+      throw new MutateDataException('Invalid Exchange');
     }
 
     if (exchange.userId !== userToken.userId) {
@@ -167,8 +172,8 @@ class DepositActionResolver extends CommonResolver {
 
     const name = isString(args.name) ? args.name : oldAction.name;
     const uom = isString(args.uom) ? args.uom : oldAction.uom;
-    const uomQuant = isNumber(args.uomQuant) ? args.uomQuant : oldAction.uomQuantity;
-    const depositQuant = isNumber(args.depositQuant) ? args.depositQuant : oldAction.depositQuantity;
+    const uomQuantity = isNumber(args.uomQuantity) ? args.uomQuantity : oldAction.uomQuantity;
+    const depositQuantity = isNumber(args.depositQuantity) ? args.depositQuantity : oldAction.depositQuantity;
     const enabled = isBoolean(args.enabled) ? args.enabled : oldAction.enabled;
 
     const newAction = new DepositAction(
@@ -177,8 +182,8 @@ class DepositActionResolver extends CommonResolver {
       exchangeId,
       name,
       uom,
-      uomQuant,
-      depositQuant,
+      uomQuantity,
+      depositQuantity,
       enabled,
       oldAction.sortedLocation,
       oldAction.dateAdded,

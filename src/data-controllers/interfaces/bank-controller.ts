@@ -17,7 +17,7 @@ interface BankController {
   getExchangeById: (exchangeId: string) => Promise<Exchange>;
   getExchangesByUserId: (userId: string) => Promise<Exchange[]>;
   addExchange: (exchange: NewExchange) => Promise<Exchange>;
-  editExchange: (exchangeId: string, name: string) => Promise<Exchange>;
+  editExchange: (newExchange: Exchange) => Promise<Exchange>;
   deleteExchange: (exchangeId: string) => Promise<string>;
 
   // Deposit Actions

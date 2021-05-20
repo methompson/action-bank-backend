@@ -11,7 +11,12 @@ import {
 import { DataDoesNotExistException } from '@root/exceptions/data-controller-exceptions';
 import CommonResolver from './common-resolver';
 import { DataController } from '@root/data-controllers';
-import { UserToken, NewWithdrawalAction, WithdrawalAction } from '@dataTypes';
+import {
+  UserToken,
+  NewWithdrawalAction,
+  WithdrawalAction,
+  Exchange,
+} from '@dataTypes';
 
 class WithdrawalActionResolver extends CommonResolver {
   constructor(protected dataController: DataController) {
@@ -76,8 +81,8 @@ class WithdrawalActionResolver extends CommonResolver {
 
   async addWithdrawalAction(parent, args, ctx, info) {
     if (!isRecord(args)
-    || !isString(args.exchangeId)
-    || !isString(args.name)
+      || !isString(args.exchangeId)
+      || !isString(args.name)
       || !isString(args.uom)
       || !isNumber(args.uomQuantity)
       || !isNumber(args.withdrawalQuantity)
@@ -91,6 +96,18 @@ class WithdrawalActionResolver extends CommonResolver {
       userToken = this.getUserTokenFromContext(ctx);
     } catch(e) {
       throw new MutateDataException('Invalid User Token');
+    }
+
+    let exchange: Exchange;
+    try {
+      // Get exchange, compare user ID
+      exchange = await this.dataController.bankController.getExchangeById(args.exchangeId);
+    } catch(e) {
+      throw new MutateDataException('Invalid Exchange');
+    }
+
+    if (exchange.userId !== userToken.userId) {
+      throw new MutateDataException('Unauthorized Access');
     }
 
     const newAction = new NewWithdrawalAction(
@@ -153,8 +170,8 @@ class WithdrawalActionResolver extends CommonResolver {
 
     const name = isString(args.name) ? args.name : oldAction.name;
     const uom = isString(args.uom) ? args.uom : oldAction.uom;
-    const uomQuant = isNumber(args.uomQuant) ? args.uomQuant : oldAction.uomQuantity;
-    const withdrawalQuant = isNumber(args.withdrawalQuant) ? args.withdrawalQuant : oldAction.withdrawalQuantity;
+    const uomQuantity = isNumber(args.uomQuantity) ? args.uomQuantity : oldAction.uomQuantity;
+    const withdrawalQuantity = isNumber(args.withdrawalQuantity) ? args.withdrawalQuantity : oldAction.withdrawalQuantity;
     const enabled = isBoolean(args.enabled) ? args.enabled : oldAction.enabled;
 
     const newAction = new WithdrawalAction(
@@ -163,8 +180,8 @@ class WithdrawalActionResolver extends CommonResolver {
       exchangeId,
       name,
       uom,
-      uomQuant,
-      withdrawalQuant,
+      uomQuantity,
+      withdrawalQuantity,
       enabled,
       oldAction.sortedLocation,
       oldAction.dateAdded,

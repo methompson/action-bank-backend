@@ -1,7 +1,6 @@
 // tslint:disable:max-classes-per-file
 
 import { UserTypeMap, UserType } from '@dataTypes/';
-import { isFunction } from 'node:util';
 
 function isObject(val: Record<string, unknown> | unknown | undefined | null): val is Record<string, unknown> {
   return typeof val === 'object' && !Array.isArray(val);
@@ -205,16 +204,8 @@ class User extends NewUser {
       throw new Error('Invalid Data');
     }
 
-    let id: string;
-    if (typeof rawJson.id === 'string') {
-      id = rawJson.id;
-    } else if (isObject(rawJson._id) && typeof rawJson._id.toString === 'function') {
-      id = rawJson._id.toString();
-    } else {
-      throw new Error('Invalid Data');
-    }
-
-    if (typeof rawJson.username !== 'string'
+    if ( typeof rawJson.id !== 'string'
+      || typeof rawJson.username !== 'string'
       || typeof rawJson.email !== 'string'
       || typeof rawJson.userType !== 'string'
       || typeof rawJson.passwordHash !== 'string'
@@ -248,7 +239,7 @@ class User extends NewUser {
       : '';
 
     const user = new User(
-      id,
+      rawJson.id,
       rawJson.username,
       rawJson.email,
       firstName,

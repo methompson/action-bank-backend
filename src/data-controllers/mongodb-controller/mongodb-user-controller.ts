@@ -2,6 +2,7 @@ import { Collection, MongoClient, ObjectId } from 'mongodb';
 
 import { User, NewUser, ProgramContext } from '@dataTypes';
 import { UserController } from '@root/data-controllers/interfaces';
+import { isRecord } from '@dataTypes/type-guards';
 
 class MongoDBUserController implements UserController {
   constructor(
@@ -18,7 +19,12 @@ class MongoDBUserController implements UserController {
       username: username,
     });
 
-    const user = User.fromJSON(result, this.programContext.userTypeMap);
+    const id = result._id.toString();
+
+    const user = User.fromJSON({
+      ...result,
+      id,
+    }, this.programContext.userTypeMap);
 
     return user;
   }
@@ -42,7 +48,11 @@ class MongoDBUserController implements UserController {
 
     results.forEach((result) => {
       try {
-        const u = User.fromJSON(result, this.programContext.userTypeMap);
+        const id = result._id.toString();
+        const u = User.fromJSON({
+          ...result,
+          id,
+        }, this.programContext.userTypeMap);
         users.push(u);
       } catch (e) {}
     });
@@ -73,7 +83,16 @@ class MongoDBUserController implements UserController {
 
   async makePasswordResetToken(userId: string, token: string): Promise<void> { throw new Error('Unimplemented'); }
 
-  async updatePassword(userId: string, newPassword: string): Promise<void> { throw new Error('Unimplemented'); }
+  async updatePassword(userId: string, newPasswordHash: string): Promise<void> {
+    const _id = new ObjectId(userId);
+    const result = await this.collection.updateOne(
+      { _id: _id },
+      {
+        $set: { passwordHash: newPasswordHash },
+      },
+      { upsert: false },
+    );
+   }
 
   async deleteUser(userId: string): Promise<void> {
     const _id = new ObjectId(userId);

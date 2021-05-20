@@ -173,7 +173,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
     // TODO Save this data
   }
 
-  async updatePassword(userId: string, newPassword: string): Promise<void> {
+  async updatePassword(userId: string, newPasswordHash: string): Promise<void> {
     let user: User;
 
     try {
@@ -189,7 +189,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
       user.firstName,
       user.lastName,
       user.userType,
-      newPassword,
+      newPasswordHash,
       user.userMeta,
       user.enabled,
       user.dateAdded,
