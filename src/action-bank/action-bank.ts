@@ -2,14 +2,12 @@ import Router from 'koa-router';
 import Koa from 'koa';
 import { Next, ParameterizedContext } from 'koa';
 import mount from 'koa-mount';
-import { hashSync, compareSync } from 'bcryptjs';
+import { compareSync } from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import {
   gql,
   ApolloServer,
   makeExecutableSchema,
-  UserInputError,
-  AuthenticationError,
 } from 'apollo-server-koa';
 import { Rule } from 'graphql-shield/dist/rules';
 import { rule, shield } from 'graphql-shield';
@@ -25,16 +23,7 @@ import {
   UserType,
   ActionBankOptions,
 } from '@dataTypes';
-// import { useRouteProtection } from './route-protection';
-import {
-  EmailExistsException,
-  UserExistsException,
-} from '@root/exceptions/user-exceptions';
 import { isActionBankOptions, isRecord } from '@dataTypes/type-guards';
-import {
-  MutateDataException,
-  QueryDataException,
-} from '@root/exceptions/graphql-exceptions';
 
 import UserResolver from './user-resolver';
 import ExchangeResolver from './exchange-resolver';
@@ -595,7 +584,6 @@ class ActionBank {
   guardByLoggedInUser(): Rule {
     return rule()(
       (parent, args, ctx, info) => {
-
         if (!isRecord(ctx)
           || !isRecord(ctx.koaCtx)
           || !isRecord(ctx.koaCtx.state)
@@ -639,6 +627,7 @@ class ActionBank {
     try {
       user = await this.dataController.userController.getUserByUsername(body.username);
     } catch(e) {
+      const _e = e;
       ctx.throw(401, 'Invalid Credentials');
     }
 

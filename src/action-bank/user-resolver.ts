@@ -31,7 +31,7 @@ class UserResolver extends CommonResolver {
 
   async getUserById(parent, args, ctx, info) {
     if (!isRecord(args)
-      || typeof args?.id !== 'string'
+      || typeof args.id !== 'string'
     ) {
       // throw new UserInputError('Invalid args value');
       return null;
@@ -127,7 +127,7 @@ class UserResolver extends CommonResolver {
   }
 
   async editUser(parent, args, ctx, info) {
-    if (!isRecord(args) || typeof args?.id !== 'string') {
+    if (!isRecord(args) || typeof args.id !== 'string') {
       return null;
     }
 

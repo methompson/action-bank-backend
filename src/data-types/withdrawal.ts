@@ -7,6 +7,9 @@ import {
 } from "./type-guards";
 
 class NewWithdrawalAction {
+  protected _dateAdded: number;
+  protected _dateUpdated: number;
+
   constructor(
     protected _userId: string,
     protected _exchangeId: string,
@@ -15,7 +18,13 @@ class NewWithdrawalAction {
     protected _uomQuantity: number,
     protected _withdrawalQuantity: number,
     protected _enabled: boolean,
-  ) {}
+    _dateAdded?: number,
+    _dateUpdated?: number,
+  ) {
+    const now = new Date().getTime();
+    this._dateAdded = _dateAdded ?? now;
+    this._dateUpdated = _dateUpdated ?? now;
+  }
 
   get userId(): string { return this._userId; }
   get exchangeId(): string { return this._exchangeId; }
@@ -24,13 +33,29 @@ class NewWithdrawalAction {
   get uomQuantity(): number { return this._uomQuantity; }
   get withdrawalQuantity(): number { return this._withdrawalQuantity; }
   get enabled(): boolean { return this._enabled; }
+  get dateAdded(): number { return this._dateAdded; }
+  get dateUpdated(): number { return this._dateUpdated; }
 
   get exchangeRate(): number {
     return this.withdrawalQuantity / this.uomQuantity;
   }
 
-  getCost(actionQuant: number): number {
-    return actionQuant * this.exchangeRate;
+  getCost(actionQuantity: number): number {
+    return actionQuantity * this.exchangeRate;
+  }
+
+  toJSON() {
+    return {
+      userId: this.userId,
+      exchangeId: this.exchangeId,
+      name: this.name,
+      uom: this.uom,
+      uomQuantity: this.uomQuantity,
+      withdrawalQuantity: this.withdrawalQuantity,
+      enabled: this.enabled,
+      dateAdded: this.dateAdded,
+      dateUpdated: this.dateUpdated,
+    };
   }
 }
 
@@ -44,17 +69,15 @@ class WithdrawalAction extends NewWithdrawalAction {
     uomQuantity: number,
     withdrawalQuantity: number,
     enabled: boolean,
+    dateAdded: number,
+    dateUpdated: number,
     protected _sortedLocation: number,
-    protected _dateAdded: number,
-    protected _dateUpdated: number,
   ) {
-    super(userId, exchangeId, name, uom, uomQuantity, withdrawalQuantity, enabled);
+    super(userId, exchangeId, name, uom, uomQuantity, withdrawalQuantity, enabled, dateAdded, dateUpdated);
   }
 
   get id(): string { return this._id; }
   get sortedLocation(): number { return this._sortedLocation; }
-  get dateAdded(): number { return this._dateAdded; }
-  get dateUpdated(): number { return this._dateUpdated; }
 
   toJSON() {
     return {
@@ -66,9 +89,9 @@ class WithdrawalAction extends NewWithdrawalAction {
       uomQuantity: this.uomQuantity,
       withdrawalQuantity: this.withdrawalQuantity,
       enabled: this.enabled,
-      sortedLocation: this.sortedLocation,
       dateAdded: this.dateAdded,
       dateUpdated: this.dateUpdated,
+      sortedLocation: this.sortedLocation,
     };
   }
 
@@ -76,14 +99,9 @@ class WithdrawalAction extends NewWithdrawalAction {
     action: NewWithdrawalAction,
     id: string,
     sortedLocation?: number | null,
-    dateAdded?: number | null,
-    dateUpdated?: number | null,
   ): WithdrawalAction {
-    const now = new Date().getTime();
 
     const _sortedLocation = sortedLocation ?? -1;
-    const _dateAdded: number = dateAdded ?? now;
-    const _dateUpdated: number = dateUpdated ?? now;
 
     return new WithdrawalAction(
       id,
@@ -94,9 +112,9 @@ class WithdrawalAction extends NewWithdrawalAction {
       action.uomQuantity,
       action.withdrawalQuantity,
       action.enabled,
+      action.dateAdded,
+      action.dateUpdated,
       _sortedLocation,
-      _dateAdded,
-      _dateUpdated,
     );
   }
 
@@ -110,9 +128,9 @@ class WithdrawalAction extends NewWithdrawalAction {
       || !isNumber(rawJson.uomQuantity)
       || !isNumber(rawJson.withdrawalQuantity)
       || !isBoolean(rawJson.enabled)
-      || !isNumber(rawJson.sortedLocation)
       || !isNumber(rawJson.dateAdded)
       || !isNumber(rawJson.dateUpdated)
+      || !isNumber(rawJson.sortedLocation)
     ) {
       throw new InvalidJSONException('Invalid Data');
     }
@@ -126,14 +144,16 @@ class WithdrawalAction extends NewWithdrawalAction {
       rawJson.uomQuantity,
       rawJson.withdrawalQuantity,
       rawJson.enabled,
-      rawJson.sortedLocation,
       rawJson.dateAdded,
       rawJson.dateUpdated,
+      rawJson.sortedLocation,
     );
   }
 }
 
 class NewWithdrawal {
+  protected _dateAdded: number;
+
   constructor(
     protected _userId: string,
     protected _exchangeId: string,
@@ -142,7 +162,10 @@ class NewWithdrawal {
     protected _uomQuantity: number,
     protected _withdrawalQuantity: number,
     protected _quantity: number,
-  ) {}
+    _dateAdded?: number
+  ) {
+    this._dateAdded = _dateAdded ?? new Date().getTime();
+  }
 
   get userId(): string { return this._userId; }
   get exchangeId(): string { return this._exchangeId; }
@@ -151,6 +174,7 @@ class NewWithdrawal {
   get uomQuantity(): number { return this._uomQuantity; }
   get withdrawalQuantity(): number { return this._withdrawalQuantity; }
   get quantity(): number { return this._quantity; }
+  get dateAdded(): number { return this._dateAdded; }
 
   get exchangeRate(): number {
     return this.withdrawalQuantity / this.uomQuantity;
@@ -158,6 +182,19 @@ class NewWithdrawal {
 
   get cost(): number {
     return this.quantity * this.exchangeRate;
+  }
+
+  toJSON() {
+    return {
+      userId: this.userId,
+      exchangeId: this.exchangeId,
+      withdrawalActionId: this.withdrawalActionId,
+      withdrawalActionName: this.withdrawalActionName,
+      uomQuantity: this.uomQuantity,
+      withdrawalQuantity: this.withdrawalQuantity,
+      quantity: this.quantity,
+      dateAdded: this.dateAdded,
+    };
   }
 
   static fromWithdrawalAction(withdrawal: WithdrawalAction, userId: string, quantity: number): NewWithdrawal {
@@ -183,7 +220,7 @@ class Withdrawal extends NewWithdrawal {
     uomQuantity: number,
     withdrawalQuantity: number,
     quantity: number,
-    protected _dateAdded: number
+    dateAdded: number
   ) {
     super(
       userId,
@@ -193,11 +230,11 @@ class Withdrawal extends NewWithdrawal {
       uomQuantity,
       withdrawalQuantity,
       quantity,
+      dateAdded,
     );
   }
 
   get id(): string { return this._id; }
-  get dateAdded(): number { return this._dateAdded; }
 
   toJSON() {
     return {
@@ -251,7 +288,7 @@ class Withdrawal extends NewWithdrawal {
       withdrawal.uomQuantity,
       withdrawal.withdrawalQuantity,
       withdrawal.quantity,
-      new Date().getTime(),
+      withdrawal.dateAdded,
     );
   }
 }

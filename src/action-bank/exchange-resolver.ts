@@ -114,8 +114,13 @@ class ExchangeResolver extends CommonResolver {
     }
 
     try {
-      const ex = await this.dataController.bankController.editExchange(args.exchangeId, args.name);
-      return ex;
+      const newEx = new Exchange(
+        currentEx.id,
+        currentEx.userId,
+        args.name,
+      );
+      const result = await this.dataController.bankController.editExchange(newEx);
+      return result;
     } catch(e) {
       throw new MutateDataException('Server Error Updating Deposit Action');
     }

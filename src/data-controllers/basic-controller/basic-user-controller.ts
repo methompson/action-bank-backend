@@ -173,7 +173,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
     // TODO Save this data
   }
 
-  async updatePassword(userId: string, newPassword: string): Promise<void> {
+  async updatePassword(userId: string, newPasswordHash: string): Promise<void> {
     let user: User;
 
     try {
@@ -189,7 +189,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
       user.firstName,
       user.lastName,
       user.userType,
-      newPassword,
+      newPasswordHash,
       user.userMeta,
       user.enabled,
       user.dateAdded,
@@ -296,7 +296,7 @@ class BasicUserController extends BasicDataControllerBase implements UserControl
 
     Object.values(rawUserData).forEach((val) => {
       try {
-        const user = User.fromJson(val, this.programContext.userTypeMap);
+        const user = User.fromJSON(val, this.programContext.userTypeMap);
         userData[user.id] = user;
       } catch(e) {
         console.log();

@@ -41,12 +41,14 @@ class NewUser {
       email: this.email,
       firstName: this.firstName,
       lastName: this.lastName,
-      userType: this.userType,
+      userType: this.userType.toString(),
       passwordHash: this.passwordHash,
       userMeta: this.userMeta,
       enabled: this.enabled,
       dateAdded: this.dateAdded,
       dateUpdated:this.dateUpdated,
+      passwordResetToken: this.passwordResetToken,
+      passwordResetDate: this.passwordResetDate,
     };
   }
 
@@ -197,16 +199,16 @@ class User extends NewUser {
     );
   }
 
-  static fromJson(rawJson: unknown, userTypeMap: UserTypeMap): User {
+  static fromJSON(rawJson: unknown, userTypeMap: UserTypeMap): User {
     if (!isObject(rawJson)) {
       throw new Error('Invalid Data');
     }
 
-    if (typeof rawJson.username !== 'string'
+    if ( typeof rawJson.id !== 'string'
+      || typeof rawJson.username !== 'string'
       || typeof rawJson.email !== 'string'
       || typeof rawJson.userType !== 'string'
       || typeof rawJson.passwordHash !== 'string'
-      || typeof rawJson.id !== 'string'
       || typeof rawJson.passwordResetToken !== 'string'
       || (typeof rawJson.passwordResetDate !== 'number' && !(rawJson.passwordResetDate instanceof Date))
       || !isObject(rawJson.userMeta)
