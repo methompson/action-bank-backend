@@ -205,6 +205,7 @@ class BasicBankController extends BasicDataControllerBase implements BankControl
       oldEx.id,
       oldEx.userId,
       newExchange.name,
+      newExchange.description,
       oldEx.depositActions,
       oldEx.withdrawalActions,
       oldEx.deposits,

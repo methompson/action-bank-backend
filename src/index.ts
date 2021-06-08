@@ -13,6 +13,7 @@ import koaJWT from "koa-jwt";
 import logger from 'koa-logger';
 import json from 'koa-json';
 import bodyParser from 'koa-bodyparser';
+import cors from '@koa/cors';
 
 import { BasicDataController } from '@root/data-controllers';
 import { ActionBank } from './action-bank';
@@ -31,6 +32,7 @@ void async function startApp() {
   const app = new Koa();
   const router = new Router();
 
+  app.use(cors());
   app.use(logger());
   app.use(json());
   app.use(bodyParser());

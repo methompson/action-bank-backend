@@ -68,6 +68,8 @@ class ExchangeResolver extends CommonResolver {
   async addExchange(parent, args, ctx, info) {
     if (!isRecord(args) || !isString(args.name)) { return null; }
 
+    const description = isString(args.description) ? args.description : '';
+
     let userToken: UserToken;
     try {
       userToken = this.getUserTokenFromContext(ctx);
@@ -75,7 +77,7 @@ class ExchangeResolver extends CommonResolver {
       throw new MutateDataException('Invalid User Token');
     }
 
-    const newExchange: NewExchange = new NewExchange(args.name, userToken.userId);
+    const newExchange: NewExchange = new NewExchange(userToken.userId, args.name, description);
 
     try {
       const ex = await this.dataController.bankController.addExchange(newExchange);
@@ -113,11 +115,16 @@ class ExchangeResolver extends CommonResolver {
       throw new MutateDataException('Unauthorized');
     }
 
+    const description = isString(args.description)
+      ? args.description
+      : currentEx.description;
+
     try {
       const newEx = new Exchange(
         currentEx.id,
         currentEx.userId,
         args.name,
+        description,
       );
       const result = await this.dataController.bankController.editExchange(newEx);
       return result;

@@ -24,8 +24,9 @@ class NewExchange {
 
   protected _totalCurrency = 0;
 
-  get name(): string { return this._name; }
   get userId(): string { return this._userId; }
+  get name(): string { return this._name; }
+  get description(): string { return this._description; }
 
   get totalCurrency(): number { return this._totalCurrency; }
 
@@ -55,8 +56,9 @@ class NewExchange {
   }
 
   constructor(
-    protected _name: string,
     protected _userId: string,
+    protected _name: string,
+    protected _description: string,
     depositActions?: DepositAction[] | null,
     withdrawalActions?: WithdrawalAction[] | null,
     deposits?: Deposit[] | null,
@@ -127,12 +129,13 @@ class Exchange extends NewExchange {
     protected _id: string,
     userId: string,
     name: string,
+    description: string,
     depositActions?: DepositAction[] | null,
     withdrawalActions?: WithdrawalAction[] | null,
     deposits?: Deposit[] | null,
     withdrawals?: Withdrawal[] | null,
   ) {
-    super(name, userId, depositActions, withdrawalActions, deposits, withdrawals);
+    super(userId, name, description, depositActions, withdrawalActions, deposits, withdrawals);
   }
 
   toJSON() {
@@ -148,6 +151,7 @@ class Exchange extends NewExchange {
       id,
       newExchange.userId,
       newExchange.name,
+      newExchange.description,
       newExchange.depositActions,
       newExchange.withdrawalActions,
       newExchange.deposits,
@@ -160,11 +164,12 @@ class Exchange extends NewExchange {
       || !isString(rawJson.id)
       || !isString(rawJson.userId)
       || !isString(rawJson.name)
+      || !isString(rawJson.description)
     ){
       throw new InvalidJSONException('Invalid Data');
     }
 
-    return new Exchange(rawJson.id, rawJson.userId, rawJson.name);
+    return new Exchange(rawJson.id, rawJson.userId, rawJson.name, rawJson.description);
   }
 }
 

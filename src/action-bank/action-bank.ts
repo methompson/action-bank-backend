@@ -235,9 +235,6 @@ class ActionBank {
   }
 
   private initBankRouter(): Koa {
-    const adminUserType = this.context.userTypeMap.getUserType('admin');
-    const editorUserType = this.context.userTypeMap.getUserType('editor');
-
     const r = new Router();
     const app = new Koa();
 
@@ -262,8 +259,8 @@ class ActionBank {
       }
 
       type Mutation {
-        addExchange(name: String!): Exchange
-        editExchange(exchangeId: ID!, name: String!): Exchange
+        addExchange(name: String!, description: String): Exchange
+        editExchange(exchangeId: ID!, name: String!, description: String): Exchange
         deleteExchange(exchangeId: ID!): ID
 
         addDepositAction(
@@ -317,6 +314,7 @@ class ActionBank {
         id: ID,
         userId: String,
         name: String,
+        description: String,
         depositActions: [DepositAction],
         deposits: [Deposit],
         withdrawalActions: [WithdrawalAction],

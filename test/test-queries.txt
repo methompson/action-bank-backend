@@ -5,7 +5,7 @@ mutation exchange {
     addExchange(
         name: "Test Exchange",
     ) {
-        id
+        id,
     }
 }
 
@@ -24,6 +24,7 @@ query getExchange {
         id,
         userId,
         name,
+        description,
         depositActions {
             id,
             name,
@@ -79,7 +80,7 @@ mutation depositAction {
         depositQuantity: 1,
         enabled: true,
     ) {
-        id
+        id,
     }
 }
 
@@ -91,7 +92,7 @@ mutation depositAction {
         uomQuantity: 10,
         depositQuantity: 1,
     ) {
-        id
+        id,
     }
 }
 
@@ -114,7 +115,7 @@ mutation widthdrawalAction {
         withdrawalQuantity: 1,
         enabled: true,
     ) {
-        id
+        id,
     }
 }
 
@@ -126,7 +127,7 @@ mutation widthdrawalAction {
         uomQuantity: 10,
         withdrawalQuantity: 1,
     ) {
-        id
+        id,
     }
 }
 
@@ -169,7 +170,7 @@ mutation deposit {
         depositActionId: "",
         quantity: 1.5,
     ) {
-        id
+        id,
     }
 }
 
@@ -178,7 +179,7 @@ mutation deposit {
         depositId: "",
         quantity: 2,
     ) {
-        id
+        id,
     }
 }
 
@@ -221,7 +222,7 @@ mutation withdrawal {
         withdrawalActionId: "",
         quantity: 1.5,
     ) {
-        id
+        id,
     }
 }
 
@@ -230,7 +231,7 @@ mutation withdrawal {
         withdrawalId: "",
         quantity: 2,
     ) {
-        id
+        id,
     }
 }
 
