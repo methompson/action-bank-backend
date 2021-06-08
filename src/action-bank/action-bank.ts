@@ -315,11 +315,11 @@ class ActionBank {
         userId: String,
         name: String,
         description: String,
+        totalCurrency: Float,
         depositActions: [DepositAction],
         deposits: [Deposit],
         withdrawalActions: [WithdrawalAction],
         withdrawals: [Withdrawal],
-        totalCurrency: Float,
       }
 
       type Deposit {

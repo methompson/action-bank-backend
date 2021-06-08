@@ -39,7 +39,6 @@ class NewExchange {
   get totalDeposits(): number {
     let deposits = 0;
     this.deposits.forEach((d) => {
-      const dep = d.deposit;
       deposits += d.deposit;
     });
 

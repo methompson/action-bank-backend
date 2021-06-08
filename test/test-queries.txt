@@ -25,6 +25,7 @@ query getExchange {
         userId,
         name,
         description,
+        totalCurrency,
         depositActions {
             id,
             name,
