@@ -74,42 +74,45 @@ class MongoDBBankController implements BankController {
       {
         $project: {
           id: {
-            $toString: "$_id",
+            $toString: '$_id',
           },
           userId: 1,
           name: 1,
+          description: {
+            $ifNull: ['$description', '']
+          },
         },
       },
       {
         $lookup: {
-          from: "depositActions",
-          localField: "id",
-          foreignField: "exchangeId",
-          as: "depositActions",
+          from: 'depositActions',
+          localField: 'id',
+          foreignField: 'exchangeId',
+          as: 'depositActions',
         },
       },
       {
         $lookup: {
-          from: "withdrawalActions",
-          localField: "id",
-          foreignField: "exchangeId",
-          as: "withdrawalActions",
+          from: 'withdrawalActions',
+          localField: 'id',
+          foreignField: 'exchangeId',
+          as: 'withdrawalActions',
         },
       },
       {
         $lookup: {
-          from: "deposits",
-          localField: "id",
-          foreignField: "exchangeId",
-          as: "deposits",
+          from: 'deposits',
+          localField: 'id',
+          foreignField: 'exchangeId',
+          as: 'deposits',
         },
       },
       {
         $lookup: {
-          from: "withdrawals",
-          localField: "id",
-          foreignField: "exchangeId",
-          as: "withdrawals",
+          from: 'withdrawals',
+          localField: 'id',
+          foreignField: 'exchangeId',
+          as: 'withdrawals',
         },
       },
     ]).toArray();
