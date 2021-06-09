@@ -320,6 +320,8 @@ class ActionBank {
         deposits: [Deposit],
         withdrawalActions: [WithdrawalAction],
         withdrawals: [Withdrawal],
+        depositCount: Int,
+        withdrawalCount: Int,
       }
 
       type Deposit {

@@ -36,7 +36,10 @@ class NewExchange {
   get deposits(): Deposit[] { return this._deposits; }
   get withdrawals(): Withdrawal[] { return this._withdrawals; }
 
-  get totalDeposits(): number {
+  get depositCount(): number { return this._deposits.length; }
+  get withdrawalCount(): number { return this._withdrawals.length; }
+
+  get depositsValue(): number {
     let deposits = 0;
     this.deposits.forEach((d) => {
       deposits += d.deposit;
@@ -45,7 +48,7 @@ class NewExchange {
     return deposits;
   }
 
-  get totalWithdrawals(): number {
+  get withdrawalsValue(): number {
     let withdrawals = 0;
     this.withdrawals.forEach((w) => {
       withdrawals += w.cost;
@@ -96,7 +99,7 @@ class NewExchange {
   }
 
   calculateTotalCurrency() {
-    this._totalCurrency = this.totalDeposits - this.totalWithdrawals;
+    this._totalCurrency = this.depositsValue - this.withdrawalsValue;
   }
 
   setActionsAndExchanges(

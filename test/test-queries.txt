@@ -64,7 +64,8 @@ query getExchange {
             quantity,
             dateAdded,
         },
-        totalCurrency,
+        depositCount,
+        withdrawalCount,
     }
 }
 
