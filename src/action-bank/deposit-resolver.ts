@@ -125,7 +125,17 @@ class DepositResolver extends CommonResolver {
       const newDeposit = NewDeposit.fromDepositAction(action, userToken.userId, args.quantity);
 
       const deposit = await this.dataController.bankController.addDeposit(newDeposit);
-      return deposit;
+
+      const ex = await this.dataController.bankController.getExchangeById(action.exchangeId);
+
+      const totalDeposits = ex.deposits.length;
+      const totalFunds = ex.totalCurrency;
+
+      return {
+        deposit,
+        totalDeposits,
+        totalFunds,
+      };
     } catch(e) {
       console.log(`Error Adding New Deposit: ${e}`);
       throw new MutateDataException('Error Adding New Deposit');

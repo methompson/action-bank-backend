@@ -124,7 +124,17 @@ class WithdrawalResolver extends CommonResolver {
       const newWithdrawal = NewWithdrawal.fromWithdrawalAction(action, userToken.userId, args.quantity);
 
       const withdrawal = await this.dataController.bankController.addWithdrawal(newWithdrawal);
-      return withdrawal;
+
+      const ex = await this.dataController.bankController.getExchangeById(action.exchangeId);
+
+      const totalWithdrawals = ex.withdrawals.length;
+      const totalFunds = ex.totalCurrency;
+
+      return {
+        withdrawal,
+        totalWithdrawals,
+        totalFunds,
+      };
     } catch(e) {
       console.log(`Error Adding New Withdrawal: ${e}`);
       throw new MutateDataException('Error Adding New Withdrawal');

@@ -301,11 +301,11 @@ class ActionBank {
         ): WithdrawalAction
         deleteWithdrawalAction(withdrawalActionId: ID!): ID
 
-        addDeposit(depositActionId: ID!, quantity: Float!): Deposit
+        addDeposit(depositActionId: ID!, quantity: Float!): DepositResponse
         editDeposit(depositId: ID!, quantity: Float!): Deposit
         deleteDeposit(depositId: ID!): ID
 
-        addWithdrawal(withdrawalActionId: ID!, quantity: Float!): Withdrawal
+        addWithdrawal(withdrawalActionId: ID!, quantity: Float!): WithdrawalResponse
         editWithdrawal(withdrawalId: ID!, quantity: Float!): Deposit
         deleteWithdrawal(withdrawalId: ID!): ID
       }
@@ -324,16 +324,6 @@ class ActionBank {
         withdrawalCount: Int,
       }
 
-      type Deposit {
-        id: ID,
-        depositActionId: ID,
-        depositActionName: String,
-        uomQuantity: Int,
-        depositQuantity: Int,
-        quantity: Float,
-        dateAdded: Float,
-      }
-
       type DepositAction {
         id: ID,
         userId: ID,
@@ -348,16 +338,6 @@ class ActionBank {
         dateUpdated: Float,
       }
 
-      type Withdrawal {
-        id: ID,
-        withdrawalActionId: ID,
-        withdrawalActionName: String,
-        uomQuantity: Int,
-        withdrawalQuantity: Int,
-        quantity: Float,
-        dateAdded: Float,
-      }
-
       type WithdrawalAction {
         id: ID,
         userId: ID,
@@ -370,6 +350,40 @@ class ActionBank {
         sortedLocation: Int,
         dateAdded: Float,
         dateUpdated: Float,
+      }
+
+      type Deposit {
+        id: ID,
+        exchangeId: ID,
+        depositActionId: ID,
+        depositActionName: String,
+        uomQuantity: Int,
+        depositQuantity: Int,
+        quantity: Float,
+        dateAdded: Float,
+      }
+
+      type Withdrawal {
+        id: ID,
+        exchangeId: ID,
+        withdrawalActionId: ID,
+        withdrawalActionName: String,
+        uomQuantity: Int,
+        withdrawalQuantity: Int,
+        quantity: Float,
+        dateAdded: Float,
+      }
+
+      type DepositResponse {
+        deposit: Deposit,
+        totalDeposits: Int,
+        totalFunds: Float,
+      }
+
+      type WithdrawalResponse {
+        withdrawal: Withdrawal,
+        totalWithdrawals: Int,
+        totalFunds: Float,
       }
     `;
 
