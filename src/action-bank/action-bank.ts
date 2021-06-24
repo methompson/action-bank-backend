@@ -267,8 +267,8 @@ class ActionBank {
           name: String!,
           exchangeId: String!,
           uom: String!,
-          uomQuantity: Int!,
-          depositQuantity: Int!,
+          uomQuantity: Float!,
+          depositQuantity: Float!,
           enabled: Boolean,
         ): DepositAction
         editDepositAction(
@@ -276,8 +276,8 @@ class ActionBank {
           exchangeId: String,
           name: String,
           uom: String,
-          uomQuantity: Int,
-          depositQuantity: Int,
+          uomQuantity: Float,
+          depositQuantity: Float,
           enabled: Boolean,
         ): DepositAction
         deleteDepositAction(depositActionId: ID!): ID
@@ -286,8 +286,8 @@ class ActionBank {
           name: String!,
           exchangeId: String!,
           uom: String!,
-          uomQuantity: Int!,
-          withdrawalQuantity: Int!,
+          uomQuantity: Float!,
+          withdrawalQuantity: Float!,
           enabled: Boolean,
         ): WithdrawalAction
         editWithdrawalAction(
@@ -295,8 +295,8 @@ class ActionBank {
           exchangeId: String,
           name: String,
           uom: String,
-          uomQuantity: Int,
-          withdrawalQuantity: Int,
+          uomQuantity: Float,
+          withdrawalQuantity: Float,
           enabled: Boolean,
         ): WithdrawalAction
         deleteWithdrawalAction(withdrawalActionId: ID!): ID
@@ -330,8 +330,8 @@ class ActionBank {
         exchangeId: ID,
         name: String,
         uom: String,
-        uomQuantity: Int,
-        depositQuantity: Int,
+        uomQuantity: Float,
+        depositQuantity: Float,
         enabled: Boolean,
         sortedLocation: Int,
         dateAdded: Float,
@@ -344,8 +344,8 @@ class ActionBank {
         exchangeId: ID,
         name: String,
         uom: String,
-        uomQuantity: Int,
-        withdrawalQuantity: Int,
+        uomQuantity: Float,
+        withdrawalQuantity: Float,
         enabled: Boolean,
         sortedLocation: Int,
         dateAdded: Float,
@@ -357,8 +357,8 @@ class ActionBank {
         exchangeId: ID,
         depositActionId: ID,
         depositActionName: String,
-        uomQuantity: Int,
-        depositQuantity: Int,
+        uomQuantity: Float,
+        depositQuantity: Float,
         quantity: Float,
         dateAdded: Float,
       }
@@ -368,8 +368,8 @@ class ActionBank {
         exchangeId: ID,
         withdrawalActionId: ID,
         withdrawalActionName: String,
-        uomQuantity: Int,
-        withdrawalQuantity: Int,
+        uomQuantity: Float,
+        withdrawalQuantity: Float,
         quantity: Float,
         dateAdded: Float,
       }
